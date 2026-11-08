@@ -19,7 +19,7 @@
 
 <br/>
 
-[Inicio rápido](#-inicio-rápido) · [Arquitectura](#-arquitectura) · [Conexión al backend](#-conexión-al-backend) · [Estado del proyecto](#-estado-del-proyecto) · [Pruebas](#-pruebas) · [Contribuir](#-contribuir)
+[Inicio rápido](#-inicio-rápido) · [Arquitectura](#-arquitectura) · [Backend](#-backend) · [Estado](#-estado-del-proyecto) · [Contribuir](#-contribuir)
 
 </div>
 
@@ -31,14 +31,13 @@
 - [Stack tecnológico](#-stack-tecnológico)
 - [Arquitectura](#-arquitectura)
 - [Inicio rápido](#-inicio-rápido)
-- [Conexión al backend](#-conexión-al-backend)
+- [Backend](#-backend)
 - [Comandos útiles](#-comandos-útiles)
 - [Estado del proyecto](#-estado-del-proyecto)
 - [Contrato y límites del backend](#-contrato-y-límites-del-backend)
 - [Seguridad](#-seguridad)
 - [Pruebas](#-pruebas)
 - [Contribuir](#-contribuir)
-- [Estado de verificación](#-estado-de-verificación)
 
 ---
 
@@ -126,28 +125,17 @@ buildSrc/                    Tarea Gradle: genera ConfigApi (URL base)
 |---|---|
 | **JDK** | 21 |
 | **Android** | Android Studio + SDK 36 |
-| **iOS** | macOS + Xcode (no verificable en Windows) |
-| **Backend** | Maranatha-Store-V2 corriendo y accesible |
+| **iOS** | macOS + Xcode |
+| **Backend** | Maranatha-Store-V2 accesible |
 
-### 1) Clonar
+### Clonar
 
 ```bash
 git clone https://github.com/Jonas26-hash/app_maranatha_store.git
 cd app_maranatha_store
 ```
 
-### 2) Configurar la URL del API (si aplica)
-
-Por defecto (emulador Android → host): `http://10.0.2.2:8080`.  
-Para otro entorno, pasa la propiedad al compilar:
-
-```powershell
-.\gradlew.bat :androidApp:assembleDebug -PmaranathaApiBaseUrl=http://<HOST>:8080
-```
-
-> La URL se genera en **tiempo de compilación** (`ConfigApi.BASE_URL`). No se versionan secretos.
-
-### 3) Compilar / instalar
+### Compilar / instalar
 
 ```powershell
 # APK debug
@@ -159,61 +147,16 @@ Para otro entorno, pasa la propiedad al compilar:
 
 APK generado: `androidApp/build/outputs/apk/debug/androidApp-debug.apk`
 
+**iOS:** abrir `iosApp/iosApp.xcodeproj` en Xcode y ejecutar en simulador/dispositivo (requiere macOS).
+
 ---
 
-## Conexión al backend
+## Backend
 
-La app consume la **raíz del API Gateway** (`http://host:8080`), no `/api` ni `/api/v1`.
-
-| Servicio | Puerto |
-|---|---:|
-| API Gateway | 8080 |
-| ms-auth | 8081 |
-| ms-producto | 8082 |
-| ms-cliente | 8083 |
-| ms-ventas | 8084 |
-| PostgreSQL | 5432 |
-
-### Elegir la URL correcta
-
-| Entorno | `maranathaApiBaseUrl` | Nota |
-|---|---|---|
-| Emulador Android | `http://10.0.2.2:8080` | `10.0.2.2` = host desde el emulador |
-| Dispositivo físico (misma Wi‑Fi/LAN) | `http://<IP_LAN_PC>:8080` | PC y dispositivo en la misma red; backend escuchando en `0.0.0.0` |
-| Dispositivo físico por USB (ADB reverse) | `http://127.0.0.1:8080` | Requiere `adb reverse tcp:8080 tcp:8080` |
-| Simulador iOS | `http://localhost:8080` | Ajustar según host donde corre el gateway |
-
-<details>
-<summary><strong>Android por USB (ADB reverse) — ejemplo</strong></summary>
-
-```powershell
-# 1) Detectar adb (SDK) y dispositivo
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" devices -l
-
-# 2) Redirigir puerto del gateway
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:8080 tcp:8080
-
-# 3) Compilar e instalar apuntando a localhost (vía reverse)
-.\gradlew.bat :androidApp:installDebug -PmaranathaApiBaseUrl=http://127.0.0.1:8080
-```
-
-> `adb reverse` se pierde al desconectar USB, reiniciar el dispositivo o reiniciar ADB.
-
-</details>
-
-<details>
-<summary><strong>Checklist si no conecta / no inicia sesión</strong></summary>
-
-- [ ] Gateway corriendo y respondiendo en `:8080`.
-- [ ] Ruta real: `POST /auth/login` (body `{"username","password"}`).
-- [ ] `maranathaApiBaseUrl` correcta para el entorno (no usar `10.0.2.2` fuera del emulador Android).
-- [ ] Recompilar tras cambiar la URL (se genera en build).
-- [ ] En físico: misma red + firewall permite `8080` + backend en `0.0.0.0`.
-- [ ] Revisar logs (Ktor `INFO`, `Authorization` saneado) para URL/status/timeout.
-
-</details>
-
-> **Android dev:** el HTTP en claro está permitido por `androidApp/src/main/res/xml/network_security_config.xml`. En producción, usar **HTTPS** y restringir esa configuración.
+- La app consume la **raíz del API Gateway** (`http://host:8080`), no `/api` ni `/api/v1`.
+- La URL base se resuelve en **tiempo de compilación** mediante la propiedad Gradle `maranathaApiBaseUrl` y se genera en `ConfigApi.BASE_URL` (ver `buildSrc/.../GenerarConfigApiTask.kt` y `shared/build.gradle.kts`).  
+  Si tu entorno requiere otra URL, configúrala localmente al compilar con `-PmaranathaApiBaseUrl=...` (sin versionar valores locales).
+- **Android (dev):** el tráfico HTTP en claro está permitido por `androidApp/src/main/res/xml/network_security_config.xml`. En producción se debe usar **HTTPS** y restringir esa configuración.
 
 ---
 
@@ -228,12 +171,7 @@ La app consume la **raíz del API Gateway** (`http://host:8080`), no `/api` ni `
 
 # Tests unitarios compartidos (host Android)
 .\gradlew.bat :shared:testAndroidHostTest
-
-# Compilar con URL de API personalizada
-.\gradlew.bat :androidApp:assembleDebug -PmaranathaApiBaseUrl=http://192.168.1.50:8080
 ```
-
-**iOS:** abrir `iosApp/iosApp.xcodeproj` en Xcode y ejecutar en simulador/dispositivo (requiere macOS).
 
 ---
 
@@ -254,9 +192,9 @@ La app consume la **raíz del API Gateway** (`http://host:8080`), no `/api` ni `
 <summary><strong>Decisiones clave (resumen)</strong></summary>
 
 - **Online-only (v1):** evita prometer ventas offline sin sincronización/idempotencia acordada.
-- **Stock/precios/totales:** los gobierna el backend; la app no duplica reglas (la venta ajusta stock en backend; anulación compensa/idempotente).
-- **URL por Gradle property:** permite emulador, físico, CI sin tocar código ni versionar config sensible.
-- **Restricción UI por rol:** acciones de gestión de productos se muestran a `ADMIN`; el gateway valida Bearer y la autorización fina vive en microservicios (documentado).
+- **Stock/precios/totales:** los gobierna el backend; la app no duplica reglas.
+- **URL por Gradle property:** configurada en build (ver `buildSrc` / `shared/build.gradle.kts`), sin versionar config sensible.
+- **Restricción UI por rol:** acciones de gestión de productos se muestran a `ADMIN`; la autorización fina vive en el backend.
 
 </details>
 
@@ -264,11 +202,11 @@ La app consume la **raíz del API Gateway** (`http://host:8080`), no `/api` ni `
 
 ## Contrato y límites del backend
 
-> Decisiones basadas en el backend real.
+> Basado en el backend real.
 
 - Login: `POST /auth/login` → `{token, username, rol}`; roles `ADMIN`/`USER` (desconocido → `USER`).
 - Sin `/auth/me`; sesión restaurada localmente.
-- Errores: `{timestamp, status, message}` (sin `validationErrors`).
+- Errores: `{timestamp, status, message}`.
 - Sin endpoints de categorías, paginación ni reportes.
 - Productos: `{id, nombre, descripcion, precio, stock, activo, version}`. Backend permite precio `0`; la app exige `> 0` (diferencia documentada).
 - Borrados físicos (hard delete) en productos/clientes.
@@ -297,23 +235,17 @@ Estas limitaciones **no** se resuelven con datos falsos ni base comercial indepe
 
 **Resultado verificado:** `109 tests completed, 0 failed` — `BUILD SUCCESSFUL`.
 
-Cobertura destacada:
-- Contrato login (método/ruta/cuerpo/sin `Authorization`), mapeo de sesión, roles desconocidos.
-- Bearer en rutas protegidas, expiración por `401` (no en login).
-- Errores HTTP `400/401/403/404/409/418/422/500`, cuerpos no JSON, `IOException`, timeouts.
-- Persistencia/restauración/limpieza de sesión; `LoginViewModel` (validación, éxito, errores, doble envío).
-- Productos: DTOs/APIs, validaciones, ViewModel (CRUD, stock, filtros, permisos, doble envío).
-- Grafo Koin con dobles de prueba.
-
-> Tests usan `MockEngine`; no requieren backend ni BD real.  
-> **iOS:** ejecución/compilación de tests iOS no verificable en Windows (pendiente en macOS/Xcode).
+- Tests usan `MockEngine`; no requieren backend ni BD real.
+- Cobertura: contrato auth/sesión, errores HTTP, validaciones y flujos principales (login, productos), grafo Koin con dobles.
 
 ---
 
 ## Contribuir
 
-1. Crea una rama desde la base actual:
+1. Crea tu rama desde `main`:
    ```bash
+   git checkout main
+   git pull
    git checkout -b feature/mi-cambio
    ```
 2. Mantén el backend como fuente de verdad; no dupliques reglas de negocio.
@@ -323,28 +255,6 @@ Cobertura destacada:
    .\gradlew.bat :shared:testAndroidHostTest
    ```
 5. No subas secretos (`local.properties`, keystores, tokens). Revisa `git status` antes de commitear.
-
-<details>
-<summary><strong>Convenciones rápidas</strong></summary>
-
-- Código compartido primero en `shared/commonMain` cuando sea posible.
-- Usa `StateFlow`/MVVM consistente con el proyecto.
-- Maneja errores usando el contrato real del backend.
-- Documenta diferencias entre validación de app y backend.
-
-</details>
-
----
-
-## Estado de verificación
-
-| Elemento | Estado |
-|---|---|
-| Compilación Android (`assembleDebug`) | ✅ Verificada en Windows |
-| Pruebas unitarias compartidas | ✅ 109/109 aprobadas |
-| Ejecución manual Android | 🚧 Pendiente |
-| Compilación/ejecución iOS | 🚧 Pendiente en macOS |
-| Backend real en ejecución | Requerido para pruebas funcionales |
 
 ---
 
