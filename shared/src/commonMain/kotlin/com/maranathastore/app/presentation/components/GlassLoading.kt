@@ -1,0 +1,17 @@
+package com.maranathastore.app.presentation.components
+
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.maranathastore.app.theme.LiquidGlass
+
+@Composable
+fun GlassLoading(modifier: Modifier = Modifier) {
+    CircularProgressIndicator(
+        modifier = modifier.size(28.dp),
+        color = LiquidGlass.VerdeNeon,
+        strokeWidth = 2.dp
+    )
+}

@@ -1,0 +1,31 @@
+# Build
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.hprof
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.kilo/
+
+# Kotlin/Native and Xcode
+.kotlin/
+iosApp/iosApp.xcodeproj/xcuserdata/
+iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+iosApp/iosApp.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+DerivedData/
+*.xcuserstate
+
+# Secrets and local API config
+*.jks
+*.keystore
+secrets.properties

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    El gateway de desarrollo se ejecuta con HTTP en la máquina local.
+    Android 9+ bloquea tráfico en claro por defecto; se permite solo para
+    desarrollo. En producción el backend debe exponerse por HTTPS y este
+    archivo debe restringirse o eliminarse.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
