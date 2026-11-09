@@ -39,9 +39,11 @@ fun GlassCard(
     glowColor: Color = LiquidGlass.VerdeNeon,
     onClick: (() -> Unit)? = null,
     contentPadding: PaddingValues = PaddingValues(18.dp),
+    fondoSolido: Boolean = false,
+    colorDeFondo: Color? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val base = modifier
+    val baseConSombra = modifier
         .shadow(
             elevation = 18.dp,
             shape = shape,
@@ -50,11 +52,16 @@ fun GlassCard(
             spotColor = glowColor.copy(alpha = 0.16f)
         )
         .clip(shape)
-        .background(LiquidGlass.GradienteCristal)
+
+    val baseConFondo = if (fondoSolido) {
+        baseConSombra.background(colorDeFondo ?: LiquidGlass.SuperficieDialogo.copy(alpha = 0.92f))
+    } else {
+        baseConSombra.background(brush = LiquidGlass.GradienteCristal)
+    }
         .border(1.dp, borderBrush, shape)
 
     Column(
-        modifier = (if (onClick != null) base.clickable(onClick = onClick) else base)
+        modifier = (if (onClick != null) baseConFondo.clickable(onClick = onClick) else baseConFondo)
             .padding(contentPadding),
         content = content
     )

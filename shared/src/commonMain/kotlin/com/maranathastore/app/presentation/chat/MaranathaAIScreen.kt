@@ -77,25 +77,28 @@ fun MaranathaAIScreen() {
             .fillMaxSize()
             .imePadding()
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (state.mensajes.isEmpty() && !state.enviando) {
-                EstadoVacioChat(
-                    modifier = Modifier.align(Alignment.Center),
-                    onSugerencia = vm::onEntradaChange
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(state.mensajes) { mensaje ->
-                        BurbujaMensaje(mensaje)
-                    }
-                    if (state.enviando) {
-                        item { IndicadorEscribiendo() }
-                    }
+        if (state.mensajes.isEmpty() && !state.enviando) {
+            EstadoVacioChat(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                onSugerencia = vm::onEntradaChange
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                state = listState,
+                contentPadding = PaddingValues(top = 14.dp, bottom = 100.dp, start = 16.dp, end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(state.mensajes) { mensaje ->
+                    BurbujaMensaje(mensaje)
+                }
+                if (state.enviando) {
+                    item { IndicadorEscribiendo() }
                 }
             }
         }

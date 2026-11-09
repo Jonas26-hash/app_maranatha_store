@@ -36,6 +36,12 @@ class NuevaVentaViewModel(
         carrito.value = list
     }
 
+    fun quitarDelCarrito(producto: Producto) {
+        val list = carrito.value.toMutableList()
+        list.removeAll { it.first.id == producto.id }
+        carrito.value = list
+    }
+
     fun enviar() {
         viewModelScope.launch {
             val detalles = carrito.value.map { DetalleVentaRequestDto(it.first.id, it.second) }

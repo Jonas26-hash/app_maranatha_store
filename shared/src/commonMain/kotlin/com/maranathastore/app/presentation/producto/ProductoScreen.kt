@@ -1,6 +1,7 @@
 package com.maranathastore.app.presentation.producto
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,7 @@ fun ProductoScreen(
 ) {
     val estado by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var productoDetalle by remember { mutableStateOf<ProductoUi?>(null) }
 
     LaunchedEffect(estado.aviso) {
         val aviso = estado.aviso ?: return@LaunchedEffect
@@ -268,6 +270,7 @@ fun ProductoScreen(
                                     ProductoCard(
                                         producto = producto,
                                         esAdmin = estado.esAdmin,
+                                        onProductoClick = { productoDetalle = producto },
                                         onEditar = { viewModel.abrirEditar(producto) },
                                         onAjustarStock = { viewModel.abrirAjusteStock(producto) },
                                         onEliminar = { viewModel.solicitarEliminar(producto) }
@@ -286,6 +289,24 @@ fun ProductoScreen(
                 .align(Alignment.BottomCenter)
                 .padding(16.dp)
         )
+    }
+
+    productoDetalle?.let { producto ->
+        Dialog(
+            onDismissRequest = { productoDetalle = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF000000).copy(alpha = 0.45f))
+            ) {
+                ProductoDetalleSheet(
+                    producto = producto,
+                    onCerrar = { productoDetalle = null }
+                )
+            }
+        }
     }
 
     estado.formulario?.let { formulario ->
@@ -325,6 +346,7 @@ fun ProductoScreen(
 private fun ProductoCard(
     producto: ProductoUi,
     esAdmin: Boolean,
+    onProductoClick: () -> Unit,
     onEditar: () -> Unit,
     onAjustarStock: () -> Unit,
     onEliminar: () -> Unit
@@ -333,6 +355,7 @@ private fun ProductoCard(
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
+        onClick = onProductoClick,
         glowColor = if (producto.activo) LiquidGlass.VerdeNeon else LiquidGlass.Azul,
         contentPadding = PaddingValues(16.dp)
     ) {
@@ -825,5 +848,108 @@ private fun EliminarProductoDialog(
                 Text("Cancelar", color = LiquidGlass.TextoSuave)
             }
         }
+    )
+}
+
+@Composable
+private fun ProductoDetalleSheet(
+    producto: ProductoUi,
+    onCerrar: () -> Unit
+) {
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .heightIn(max = 560.dp),
+        contentPadding = PaddingValues(20.dp),
+        glowColor = if (producto.activo) LiquidGlass.VerdeNeon else LiquidGlass.Azul,
+        fondoSolido = true
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                GlassIconTile(
+                    icon = Icons.Default.Inventory2,
+                    tint = if (producto.activo) LiquidGlass.VerdeNeon else LiquidGlass.TextoSuave,
+                    container = if (producto.activo) {
+                        LiquidGlass.VerdeNeon.copy(alpha = 0.12f)
+                    } else {
+                        LiquidGlass.CristalSuave
+                    },
+                    size = 56
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = producto.codigo,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = LiquidGlass.TextoSuave
+                    )
+                    Text(
+                        text = producto.nombre,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = LiquidGlass.Texto,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            producto.descripcion?.let { descripcion ->
+                Text(
+                    text = descripcion,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = LiquidGlass.TextoSuave
+                )
+            } ?: Text(
+                text = "Sin descripción.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = LiquidGlass.TextoSuave
+            )
+
+            HorizontalDivider(color = LiquidGlass.Borde.copy(alpha = 0.25f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GlassPill(
+                    text = "Precio",
+                    color = LiquidGlass.VerdeNeon,
+                    container = LiquidGlass.VerdeNeon.copy(alpha = 0.12f)
+                )
+                GlassPill(
+                    text = producto.precio,
+                    color = LiquidGlass.VerdeNeon,
+                    container = LiquidGlass.VerdeNeon.copy(alpha = 0.12f)
+                )
+                EtiquetaStockDetalle(producto)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
+            ) {
+                TextButton(onClick = onCerrar) {
+                    Text("Cerrar", color = LiquidGlass.TextoSuave)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EtiquetaStockDetalle(producto: ProductoUi) {
+    val (tono, texto) = when {
+        producto.stock <= 0 -> LiquidGlass.Peligro to "Agotado"
+        producto.stockBajo -> LiquidGlass.Ambar to "Stock bajo (${producto.stock})"
+        else -> LiquidGlass.Azul to "Stock ${producto.stock}"
+    }
+    GlassPill(
+        text = texto,
+        color = tono,
+        container = tono.copy(alpha = 0.12f)
     )
 }

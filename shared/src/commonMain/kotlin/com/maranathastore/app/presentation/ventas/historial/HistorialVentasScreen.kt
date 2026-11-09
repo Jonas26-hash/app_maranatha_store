@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +22,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maranathastore.app.data.remote.VentaDto
 import com.maranathastore.app.presentation.components.GlassCard
@@ -51,6 +57,7 @@ fun HistorialVentasScreen() {
     val ventas by vm.ventas.collectAsStateWithLifecycle()
 
     var ventaAAnular by remember { mutableStateOf<VentaDto?>(null) }
+    var ventaDetalle by remember { mutableStateOf<VentaDto?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -113,7 +120,8 @@ fun HistorialVentasScreen() {
                     Reveal(delayMillis = (indice.coerceAtMost(9)) * 40) {
                         VentaCard(
                             venta = venta,
-                            onAnular = { ventaAAnular = venta }
+                            onAnular = { ventaAAnular = venta },
+                            onVentaClick = { ventaDetalle = venta }
                         )
                     }
                 }
@@ -157,12 +165,121 @@ fun HistorialVentasScreen() {
             }
         )
     }
+
+    ventaDetalle?.let { venta ->
+        Dialog(
+            onDismissRequest = { ventaDetalle = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF000000).copy(alpha = 0.45f))
+            ) {
+                VentaDetalleSheet(
+                    venta = venta,
+                    onCerrar = { ventaDetalle = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VentaDetalleSheet(
+    venta: VentaDto,
+    onCerrar: () -> Unit
+) {
+    val anulada = venta.estado.equals("ANULADA", ignoreCase = true)
+    val tono = if (anulada) LiquidGlass.Peligro else LiquidGlass.VerdeNeon
+
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .heightIn(max = 520.dp),
+        contentPadding = PaddingValues(20.dp),
+        glowColor = tono,
+        fondoSolido = true
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                GlassIconTile(
+                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
+                    tint = tono,
+                    container = tono.copy(alpha = 0.12f),
+                    size = 56
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "#${venta.id}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = LiquidGlass.TextoSuave
+                    )
+                    Text(
+                        text = venta.tipoComprobante ?: "Comprobante",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = LiquidGlass.Texto
+                    )
+                }
+            }
+
+            Text(
+                text = venta.fecha?.replace("T", " ")?.take(16) ?: "Sin fecha",
+                style = MaterialTheme.typography.bodySmall,
+                color = LiquidGlass.TextoSuave
+            )
+
+            HorizontalDivider(color = LiquidGlass.Borde.copy(alpha = 0.25f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GlassPill(
+                    text = "Estado",
+                    color = tono,
+                    container = tono.copy(alpha = 0.12f)
+                )
+                GlassPill(
+                    text = venta.estado ?: "REGISTRADA",
+                    color = tono,
+                    container = tono.copy(alpha = 0.12f)
+                )
+                GlassPill(
+                    text = "S/ ${formatearMonto(venta.total ?: 0.0)}",
+                    color = LiquidGlass.VerdeNeon,
+                    container = LiquidGlass.VerdeNeon.copy(alpha = 0.12f)
+                )
+            }
+
+            Text(
+                text = venta.clienteId?.let { "Cliente #$it" } ?: "Sin cliente asignado",
+                style = MaterialTheme.typography.bodyMedium,
+                color = LiquidGlass.TextoSuave
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
+            ) {
+                TextButton(onClick = onCerrar) {
+                    Text("Cerrar", color = LiquidGlass.TextoSuave)
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun VentaCard(
     venta: VentaDto,
-    onAnular: () -> Unit
+    onAnular: () -> Unit,
+    onVentaClick: () -> Unit
 ) {
     val anulada = venta.estado.equals("ANULADA", ignoreCase = true)
     val tono = if (anulada) LiquidGlass.Peligro else LiquidGlass.VerdeNeon
@@ -170,6 +287,7 @@ private fun VentaCard(
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         glowColor = tono,
+        onClick = onVentaClick,
         contentPadding = PaddingValues(16.dp)
     ) {
         Column(
