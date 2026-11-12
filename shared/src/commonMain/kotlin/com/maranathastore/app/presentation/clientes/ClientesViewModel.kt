@@ -8,40 +8,64 @@ import com.maranathastore.app.data.remote.ClienteRequestDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-sealed interface ClientesUiState {
-    data object Loading : ClientesUiState
-    data class Success(val clientes: List<ClienteDto>) : ClientesUiState
-    data object Empty : ClientesUiState
-    data class Error(val mensaje: String) : ClientesUiState
-}
+data class ClientesUiState(
+    val cargando: Boolean = true,
+    val clientes: List<ClienteDto> = emptyList(),
+    val error: String? = null,
+    val procesando: Boolean = false,
+    val aviso: String? = null
+)
 
 class ClientesViewModel(private val api: ClienteApi) : ViewModel() {
-    private val _state = MutableStateFlow<ClientesUiState>(ClientesUiState.Loading)
+    private val _state = MutableStateFlow(ClientesUiState())
     val state: StateFlow<ClientesUiState> = _state.asStateFlow()
 
     init { cargar() }
 
     fun cargar() {
         viewModelScope.launch {
-            _state.value = ClientesUiState.Loading
+            _state.update { it.copy(cargando = true, error = null) }
             try {
                 val lista = api.listar()
-                _state.value = if (lista.isEmpty()) ClientesUiState.Empty else ClientesUiState.Success(lista)
+                _state.update { it.copy(cargando = false, clientes = lista, error = null) }
             } catch (e: Exception) {
-                _state.value = ClientesUiState.Error(e.message ?: "Error")
+                _state.update {
+                    it.copy(cargando = false, error = e.message ?: "No se pudieron cargar los clientes.")
+                }
             }
         }
     }
 
     fun crear(dto: ClienteRequestDto) {
+        ejecutarAccion(exito = "Cliente registrado.") { api.crear(dto) }
+    }
+
+    fun actualizar(id: Long, dto: ClienteRequestDto) {
+        ejecutarAccion(exito = "Cliente actualizado.") { api.actualizar(id, dto) }
+    }
+
+    fun eliminar(id: Long) {
+        ejecutarAccion(exito = "Cliente eliminado.") { api.eliminar(id) }
+    }
+
+    fun limpiarAviso() {
+        _state.update { it.copy(aviso = null) }
+    }
+
+    private fun ejecutarAccion(exito: String, bloque: suspend () -> Unit) {
         viewModelScope.launch {
+            _state.update { it.copy(procesando = true, aviso = null) }
             try {
-                api.crear(dto)
+                bloque()
+                _state.update { it.copy(procesando = false, aviso = exito) }
                 cargar()
             } catch (e: Exception) {
-                _state.value = ClientesUiState.Error(e.message ?: "Error")
+                _state.update {
+                    it.copy(procesando = false, aviso = e.message ?: "No se pudo completar la operación.")
+                }
             }
         }
     }

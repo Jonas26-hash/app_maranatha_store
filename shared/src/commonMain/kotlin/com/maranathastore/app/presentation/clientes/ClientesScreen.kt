@@ -23,19 +23,30 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,9 +80,18 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ClientesScreen() {
     val vm = koinViewModel<ClientesViewModel>()
     val state by vm.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    var mostrarFormulario by remember { mutableStateOf(false) }
     var busqueda by remember { mutableStateOf("") }
+    var mostrarCrear by remember { mutableStateOf(false) }
+    var clienteEditar by remember { mutableStateOf<ClienteDto?>(null) }
+    var clienteEliminar by remember { mutableStateOf<ClienteDto?>(null) }
+
+    LaunchedEffect(state.aviso) {
+        val aviso = state.aviso ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(aviso)
+        vm.limpiarAviso()
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -91,7 +111,8 @@ fun ClientesScreen() {
                 }
                 IconButton(
                     onClick = { vm.cargar() },
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(44.dp),
+                    enabled = !state.cargando
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -101,35 +122,22 @@ fun ClientesScreen() {
                 }
             }
 
-            when (val s = state) {
-                is ClientesUiState.Loading -> Box(
+            when {
+                state.cargando && state.clientes.isEmpty() -> Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     GlassLoading()
                 }
 
-                is ClientesUiState.Empty -> Column(
+                state.error != null && state.clientes.isEmpty() -> Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    GlassEmptyState(
-                        titulo = "Aún no hay clientes",
-                        message = "Registra tu primer cliente para agilizar tus ventas."
-                    )
-                }
-
-                is ClientesUiState.Error -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    GlassErrorState(message = s.mensaje)
+                    GlassErrorState(message = state.error ?: "Error")
                     Spacer(Modifier.height(16.dp))
                     Button(
                         onClick = { vm.cargar() },
@@ -142,8 +150,21 @@ fun ClientesScreen() {
                     }
                 }
 
-                is ClientesUiState.Success -> {
-                    val filtrados = s.clientes.filter { cliente ->
+                state.clientes.isEmpty() -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    GlassEmptyState(
+                        titulo = "Aún no hay clientes",
+                        message = "Registra tu primer cliente para agilizar tus ventas."
+                    )
+                }
+
+                else -> {
+                    val filtrados = state.clientes.filter { cliente ->
                         val q = busqueda.trim().lowercase()
                         q.isBlank() ||
                             cliente.nombre?.lowercase()?.contains(q) == true ||
@@ -172,10 +193,14 @@ fun ClientesScreen() {
                         ) {
                             itemsIndexed(
                                 items = filtrados,
-                                key = { indice, cliente -> cliente.id ?: indice }
+                                key = { indice, cliente -> cliente.id ?: indice.toLong() }
                             ) { indice, cliente ->
                                 Reveal(delayMillis = (indice.coerceAtMost(9)) * 40) {
-                                    ClienteCard(cliente)
+                                    ClienteCard(
+                                        cliente = cliente,
+                                        onEditar = { clienteEditar = cliente },
+                                        onEliminar = { clienteEliminar = cliente }
+                                    )
                                 }
                             }
                         }
@@ -185,7 +210,7 @@ fun ClientesScreen() {
         }
 
         FloatingActionButton(
-            onClick = { mostrarFormulario = true },
+            onClick = { mostrarCrear = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
@@ -198,26 +223,102 @@ fun ClientesScreen() {
                 contentDescription = "Agregar cliente"
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp)
+        )
     }
 
-    if (mostrarFormulario) {
-        NuevoClienteDialog(
-            onCerrar = { mostrarFormulario = false },
+    if (mostrarCrear) {
+        ClienteFormularioDialog(
+            titulo = "Nuevo cliente",
+            subtitulo = "Los datos se sincronizan con el backend.",
+            confirmarTexto = "Guardar cliente",
+            inicial = null,
+            procesando = state.procesando,
+            onCerrar = { mostrarCrear = false },
             onGuardar = { dto ->
                 vm.crear(dto)
-                mostrarFormulario = false
+                mostrarCrear = false
+            }
+        )
+    }
+
+    clienteEditar?.let { cliente ->
+        val id = cliente.id
+        if (id != null) {
+            ClienteFormularioDialog(
+                titulo = "Editar cliente",
+                subtitulo = "Actualiza los datos del cliente en el backend.",
+                confirmarTexto = "Actualizar",
+                inicial = cliente,
+                procesando = state.procesando,
+                onCerrar = { clienteEditar = null },
+                onGuardar = { dto ->
+                    vm.actualizar(id, dto)
+                    clienteEditar = null
+                }
+            )
+        }
+    }
+
+    clienteEliminar?.let { cliente ->
+        val id = cliente.id
+        AlertDialog(
+            onDismissRequest = { if (!state.procesando) clienteEliminar = null },
+            containerColor = LiquidGlass.SuperficieDialogo,
+            titleContentColor = LiquidGlass.Texto,
+            textContentColor = LiquidGlass.TextoSuave,
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Eliminar cliente") },
+            text = {
+                Text(
+                    "¿Eliminar a ${nombreCompleto(cliente)}? Esta acción se enviará al backend."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (id != null) vm.eliminar(id)
+                        clienteEliminar = null
+                    },
+                    enabled = id != null && !state.procesando,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LiquidGlass.Peligro,
+                        contentColor = Color(0xFF2A060C)
+                    )
+                ) {
+                    if (state.procesando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFF2A060C)
+                        )
+                    } else {
+                        Text("Eliminar")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { clienteEliminar = null }, enabled = !state.procesando) {
+                    Text("Cancelar", color = LiquidGlass.TextoSuave)
+                }
             }
         )
     }
 }
 
 @Composable
-private fun ClienteCard(cliente: ClienteDto) {
-    val nombreCompleto = listOfNotNull(
-        cliente.nombre?.takeIf { it.isNotBlank() },
-        cliente.apellido?.takeIf { it.isNotBlank() }
-    ).joinToString(" ").ifBlank { "Cliente sin nombre" }
-
+private fun ClienteCard(
+    cliente: ClienteDto,
+    onEditar: () -> Unit,
+    onEliminar: () -> Unit
+) {
+    var menuAbierto by remember { mutableStateOf(false) }
+    val nombre = nombreCompleto(cliente)
     val documento = listOfNotNull(
         cliente.tipoDocumento?.takeIf { it.isNotBlank() },
         cliente.numeroDocumento?.takeIf { it.isNotBlank() }
@@ -248,7 +349,7 @@ private fun ClienteCard(cliente: ClienteDto) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = nombreCompleto.take(1).uppercase(),
+                    text = nombre.take(1).uppercase(),
                     style = MaterialTheme.typography.titleMedium,
                     color = LiquidGlass.Azul
                 )
@@ -263,7 +364,7 @@ private fun ClienteCard(cliente: ClienteDto) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = nombreCompleto,
+                        text = nombre,
                         style = MaterialTheme.typography.titleMedium,
                         color = LiquidGlass.Texto,
                         maxLines = 1,
@@ -348,27 +449,74 @@ private fun ClienteCard(cliente: ClienteDto) {
                     }
                 }
             }
+
+            if (cliente.id != null) {
+                Box {
+                    IconButton(onClick = { menuAbierto = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Acciones del cliente",
+                            tint = LiquidGlass.TextoSuave
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuAbierto,
+                        onDismissRequest = { menuAbierto = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Editar") },
+                            onClick = {
+                                menuAbierto = false
+                                onEditar()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Edit, contentDescription = null)
+                            }
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Eliminar", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                menuAbierto = false
+                                onEliminar()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun NuevoClienteDialog(
+private fun ClienteFormularioDialog(
+    titulo: String,
+    subtitulo: String,
+    confirmarTexto: String,
+    inicial: ClienteDto?,
+    procesando: Boolean,
     onCerrar: () -> Unit,
     onGuardar: (ClienteRequestDto) -> Unit
 ) {
-    var nombre by remember { mutableStateOf("") }
-    var apellido by remember { mutableStateOf("") }
-    var tipoDoc by remember { mutableStateOf("DNI") }
-    var numeroDoc by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var telefono by remember { mutableStateOf("") }
-    var direccion by remember { mutableStateOf("") }
+    var nombre by remember(inicial) { mutableStateOf(inicial?.nombre.orEmpty()) }
+    var apellido by remember(inicial) { mutableStateOf(inicial?.apellido.orEmpty()) }
+    var tipoDoc by remember(inicial) { mutableStateOf(inicial?.tipoDocumento?.ifBlank { null } ?: "DNI") }
+    var numeroDoc by remember(inicial) { mutableStateOf(inicial?.numeroDocumento.orEmpty()) }
+    var email by remember(inicial) { mutableStateOf(inicial?.email.orEmpty()) }
+    var telefono by remember(inicial) { mutableStateOf(inicial?.telefono.orEmpty()) }
+    var direccion by remember(inicial) { mutableStateOf(inicial?.direccion.orEmpty()) }
 
-    val puedeGuardar = nombre.isNotBlank() && numeroDoc.isNotBlank()
+    val puedeGuardar = nombre.isNotBlank() && numeroDoc.isNotBlank() && !procesando
 
     Dialog(
-        onDismissRequest = onCerrar,
+        onDismissRequest = { if (!procesando) onCerrar() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         GlassCard(
@@ -385,12 +533,12 @@ private fun NuevoClienteDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Nuevo cliente",
+                    text = titulo,
                     style = MaterialTheme.typography.headlineSmall,
                     color = LiquidGlass.Texto
                 )
                 Text(
-                    text = "Los datos se sincronizan con el backend.",
+                    text = subtitulo,
                     style = MaterialTheme.typography.bodySmall,
                     color = LiquidGlass.TextoSuave
                 )
@@ -399,14 +547,16 @@ private fun NuevoClienteDialog(
                     value = nombre,
                     onValueChange = { nombre = it },
                     label = "Nombre *",
-                    placeholder = "Ej. Ana"
+                    placeholder = "Ej. Ana",
+                    enabled = !procesando
                 )
 
                 GlassTextField(
                     value = apellido,
                     onValueChange = { apellido = it },
                     label = "Apellido",
-                    placeholder = "Ej. Pérez"
+                    placeholder = "Ej. Pérez",
+                    enabled = !procesando
                 )
 
                 Text(
@@ -419,7 +569,8 @@ private fun NuevoClienteDialog(
                         GlassChip(
                             label = tipo,
                             selected = tipoDoc == tipo,
-                            onClick = { tipoDoc = tipo }
+                            onClick = { if (!procesando) tipoDoc = tipo },
+                            enabled = !procesando
                         )
                     }
                 }
@@ -429,7 +580,8 @@ private fun NuevoClienteDialog(
                     onValueChange = { numeroDoc = it },
                     label = "Número de documento *",
                     placeholder = "Ej. 70123456",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    enabled = !procesando
                 )
 
                 GlassTextField(
@@ -437,7 +589,8 @@ private fun NuevoClienteDialog(
                     onValueChange = { email = it },
                     label = "Email",
                     placeholder = "cliente@correo.com",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    enabled = !procesando
                 )
 
                 GlassTextField(
@@ -445,7 +598,8 @@ private fun NuevoClienteDialog(
                     onValueChange = { telefono = it },
                     label = "Teléfono",
                     placeholder = "Ej. 987654321",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    enabled = !procesando
                 )
 
                 GlassTextField(
@@ -455,14 +609,15 @@ private fun NuevoClienteDialog(
                     placeholder = "Calle, número, distrito",
                     singleLine = false,
                     minLines = 2,
-                    maxLines = 3
+                    maxLines = 3,
+                    enabled = !procesando
                 )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
                 ) {
-                    TextButton(onClick = onCerrar) {
+                    TextButton(onClick = onCerrar, enabled = !procesando) {
                         Text("Cancelar", color = LiquidGlass.TextoSuave)
                     }
                     Button(
@@ -487,10 +642,24 @@ private fun NuevoClienteDialog(
                             disabledContentColor = LiquidGlass.TextoSuave
                         )
                     ) {
-                        Text("Guardar cliente")
+                        if (procesando) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF00271A)
+                            )
+                        } else {
+                            Text(confirmarTexto)
+                        }
                     }
                 }
             }
         }
     }
 }
+
+private fun nombreCompleto(cliente: ClienteDto): String =
+    listOfNotNull(
+        cliente.nombre?.takeIf { it.isNotBlank() },
+        cliente.apellido?.takeIf { it.isNotBlank() }
+    ).joinToString(" ").ifBlank { "Cliente sin nombre" }
