@@ -68,4 +68,7 @@ fun VentaDto.etiquetaFiscal(): String = if (tipoComprobante == "NOTA_PEDIDO") "N
 }
 
 @Serializable
-data class EvidenciaBetaDto(val ambiente: String, val validezFiscal: Boolean, val comprobante: String, val estadoSunat: String, val codigo: String, val igv: String, val total: String, val fecha: String, val contenidoQr: String)
+data class EvidenciaBetaDto(val ambiente: String, val validezFiscal: Boolean, val comprobante: String, val estadoSunat: String, val codigo: String, val igv: String, val total: String, val fecha: String, val contenidoQr: String, val subtotal: String? = null, val cliente: String? = null, val detalles: List<LineaBetaDto> = emptyList())
+
+@Serializable
+data class LineaBetaDto(val descripcion: String, val cantidad: String, val precioUnitario: String, val importe: String)

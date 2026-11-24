@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.maranathastore.app.data.remote.EvidenciaBetaDto
+import com.maranathastore.app.data.remote.VentaDto
+import com.maranathastore.app.presentation.ventas.recordarImpresionComprobante
 import com.maranathastore.app.theme.LiquidGlass
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -44,6 +46,13 @@ fun EvidenciaBetaDialog(cargar: suspend (String) -> EvidenciaBetaDto, cerrar: ()
                     Text("SUNAT: Aceptado en Beta · Código ${v.codigo}", color = LiquidGlass.VerdeNeon)
                     Text("Fecha: ${v.fecha} · IGV S/ ${v.igv} · Total S/ ${v.total}", color = LiquidGlass.Texto)
                     QrEvidenciaBeta(v.contenidoQr)
+                    val referencia = VentaDto(serie = v.comprobante.substringBefore('-'), numero = v.comprobante.substringAfter('-'))
+                    val ticket = recordarImpresionComprobante(referencia, "TICKET", beta = v)
+                    val a4 = recordarImpresionComprobante(referencia, "A4", beta = v)
+                    if (ticket != null && a4 != null) {
+                        Button(onClick = ticket, modifier = Modifier.fillMaxWidth()) { Text("Guardar Ticket 80 mm / PDF") }
+                        Button(onClick = a4, modifier = Modifier.fillMaxWidth()) { Text("Imprimir A4 / PDF") }
+                    }
                     Text("QR de prueba · Sin validez fiscal", color = LiquidGlass.TextoSuave)
                 }
             }

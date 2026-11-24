@@ -30,7 +30,7 @@ fun SelectorComprobante(venta: VentaDto, onCerrar: () -> Unit,
         }
     }
     var formato by remember { mutableStateOf<String?>(null) }
-    val imprimir = recordarImpresionComprobante(venta, formato ?: "A4")
+    val imprimir = recordarImpresionComprobante(venta, formato ?: "A4", local?.takeIf { !it.validezFiscal && it.ambiente == "BORRADOR_LOCAL" })
     AlertDialog(onDismissRequest = onCerrar,
         containerColor = LiquidGlass.SuperficieDialogo,
         title = { Text(if (formato == null) "Formato de comprobante" else "Vista previa · $formato", color = LiquidGlass.Texto) },
@@ -57,9 +57,9 @@ fun SelectorComprobante(venta: VentaDto, onCerrar: () -> Unit,
                     Text("Registro interno. No acredita validación SUNAT. QR fiscal no disponible.", color = LiquidGlass.TextoSuave)
                 }
             }
-        }, confirmButton = { if (formato != null && imprimir != null) Button(onClick = imprimir) { Text("Imprimir / PDF") } else TextButton(onClick = onCerrar) { Text("Cerrar") } },
+        }, confirmButton = { if (formato != null && imprimir != null) Button(onClick = imprimir) { Text(if (formato == "TICKET") "Guardar Ticket / PDF" else "Imprimir / PDF") } else TextButton(onClick = onCerrar) { Text("Cerrar") } },
         dismissButton = { if (formato != null) TextButton(onClick = { formato = null }) { Text("Formato") } else TextButton(onClick = onCerrar) { Text("Ahora no") } })
 }
 
 @Composable
-expect fun recordarImpresionComprobante(venta: VentaDto, formato: String): (() -> Unit)?
+expect fun recordarImpresionComprobante(venta: VentaDto, formato: String, local: ComprobanteLocalDto? = null, beta: EvidenciaBetaDto? = null): (() -> Unit)?
