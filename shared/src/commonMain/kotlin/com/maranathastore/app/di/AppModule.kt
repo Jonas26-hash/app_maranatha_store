@@ -1,10 +1,11 @@
-﻿package com.maranathastore.app.di
+package com.maranathastore.app.di
 
 import com.maranathastore.app.data.auth.GestorSesion
 import com.maranathastore.app.data.tema.GestorTema
 import com.maranathastore.app.data.remote.AuthApi
 import com.maranathastore.app.data.remote.AuthRepositorioRemoto
 import com.maranathastore.app.data.remote.ClienteApi
+import com.maranathastore.app.data.remote.FacturacionApi
 import com.maranathastore.app.data.remote.MaranathaAiApi
 import com.maranathastore.app.data.remote.ProductoApi
 import com.maranathastore.app.data.remote.VentaApi
@@ -51,6 +52,7 @@ val dataModule = module {
     single { ClienteApi(get()) }
 
     single { VentaApi(get()) }
+    single { FacturacionApi(get()) }
     single<com.maranathastore.app.domain.venta.VentaRepository> { com.maranathastore.app.domain.venta.VentaRepositorioRemoto(get()) }
 
     single { MaranathaAiApi(get()) }
@@ -63,7 +65,7 @@ val presentationModule = module {
     viewModel { InventarioViewModel(get()) }
     viewModel { SalesViewModel() }
     viewModel { ClientesViewModel(get()) }
-    viewModel { NuevaVentaViewModel(get(), get(), get()) }
+    viewModel { NuevaVentaViewModel(get(), get<FacturacionApi>(), get()) }
     viewModel { HistorialVentasViewModel(get()) }
     viewModel { ReportesViewModel(get(), get()) }
     viewModel { MaranathaAIViewModel(get()) }

@@ -2,7 +2,10 @@ package com.maranathastore.app.presentation.ventas
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.maranathastore.app.data.remote.ClienteApi
+import com.maranathastore.app.data.remote.FacturacionApi
+import kotlinx.coroutines.CancellationException
+import kotlin.uuid.Uuid
+import kotlin.uuid.ExperimentalUuidApi
 import com.maranathastore.app.data.remote.ClienteDto
 import com.maranathastore.app.data.remote.VentaApi
 import com.maranathastore.app.data.remote.VentaRequestDto
@@ -33,13 +36,20 @@ data class NuevaVentaUiState(
     val carrito: List<Pair<Producto, Int>> = emptyList(),
     val tipoComprobante: String = "BOLETA",
     val clienteId: Long? = null,
+    val documento: String = "",
+    val nombre: String = "",
+    val direccionFiscal: String = "",
+    val consultando: Boolean = false,
+    val pagoConfirmado: Boolean = false,
+    val requiereRevision: Boolean = false,
     val enviando: Boolean = false,
     val aviso: AvisoVentaUi? = null
 )
 
+@OptIn(ExperimentalUuidApi::class)
 class NuevaVentaViewModel(
     private val productoRepository: ProductoRepository,
-    private val clienteApi: ClienteApi,
+    private val facturacionApi: FacturacionApi,
     private val ventaApi: VentaApi
 ) : ViewModel() {
     private val _state = MutableStateFlow(NuevaVentaUiState())
@@ -62,8 +72,7 @@ class NuevaVentaViewModel(
         viewModelScope.launch {
             try {
                 val prods = productoRepository.listar()
-                val cls = try { clienteApi.listar() } catch (_: Exception) { emptyList() }
-                _state.update { it.copy(productos = prods, clientes = cls) }
+                _state.update { it.copy(productos = prods) }
                 sincronizarCompat()
             } catch (_: Exception) {
                 // Mantener estado actual; la UI puede reintentar desde acciones del usuario si aplica
@@ -72,7 +81,12 @@ class NuevaVentaViewModel(
     }
 
     fun agregar(producto: Producto, cantidad: Int) {
-        if (cantidad <= 0) return
+        if (cantidad <= 0 || _state.value.enviando || _state.value.requiereRevision) return
+        val acumulado = _state.value.carrito.firstOrNull { it.first.id == producto.id }?.second ?: 0
+        if (cantidad > producto.stock - acumulado) {
+            _state.update { it.copy(aviso = AvisoVentaUi.Error("Stock insuficiente")) }
+            return
+        }
         _state.update { actual ->
             val lista = actual.carrito.toMutableList()
             val idx = lista.indexOfFirst { it.first.id == producto.id }
@@ -82,15 +96,17 @@ class NuevaVentaViewModel(
             } else {
                 lista.add(producto to cantidad)
             }
-            actual.copy(carrito = lista, aviso = null)
+            actual.copy(carrito = lista, aviso = null, pagoConfirmado = false)
         }
         sincronizarCompat()
     }
 
     fun quitarDelCarrito(producto: Producto) {
+        if (_state.value.enviando || _state.value.requiereRevision) return
         _state.update { actual ->
             actual.copy(
                 carrito = actual.carrito.filterNot { it.first.id == producto.id },
+                pagoConfirmado = false,
                 aviso = null
             )
         }
@@ -98,14 +114,50 @@ class NuevaVentaViewModel(
     }
 
     fun setTipoComprobante(valor: String) {
-        _state.update { it.copy(tipoComprobante = valor) }
-        tipoComprobante.value = valor
+        if (_state.value.enviando || _state.value.consultando || _state.value.requiereRevision) return
+        _state.update { it.copy(tipoComprobante = valor, documento = "", nombre = "", direccionFiscal = "", pagoConfirmado = false, clienteId = null) }
+        sincronizarCompat()
     }
 
-    fun setClienteId(valor: Long?) {
-        _state.update { it.copy(clienteId = valor) }
-        clienteId.value = valor
+    fun setDocumento(valor: String) {
+        if (_state.value.enviando || _state.value.consultando || _state.value.requiereRevision) return
+        val limite = if (_state.value.tipoComprobante == "FACTURA") 11 else 8
+        _state.update { it.copy(documento = valor.filter { c -> c in '0'..'9' }.take(limite), nombre = "", direccionFiscal = "", pagoConfirmado = false) }
     }
+
+    fun setNombre(valor: String) {
+        if (_state.value.enviando || _state.value.consultando || _state.value.requiereRevision) return
+        _state.update { it.copy(nombre = valor.take(220), pagoConfirmado = false) }
+    }
+
+    fun setDireccionFiscal(valor: String) {
+        if (_state.value.enviando || _state.value.consultando || _state.value.requiereRevision) return
+        _state.update { it.copy(direccionFiscal = valor.take(250), pagoConfirmado = false) }
+    }
+
+    fun confirmarPago(valor: Boolean) {
+        if (_state.value.enviando || _state.value.requiereRevision) return
+        _state.update { it.copy(pagoConfirmado = valor) }
+    }
+
+    fun consultarRuc() {
+        val s = _state.value
+        if (s.tipoComprobante != "FACTURA" || !s.documento.matches(Regex("[0-9]{11}")) || s.consultando || s.enviando || s.requiereRevision) return
+        _state.update { it.copy(consultando = true, nombre = "", direccionFiscal = "", pagoConfirmado = false) }
+        viewModelScope.launch {
+            try {
+                val datos = facturacionApi.consultarRuc(s.documento)
+                if (datos.ruc != s.documento || datos.razonSocial.isBlank()) error("Respuesta inválida")
+                _state.update { it.copy(nombre = datos.razonSocial.take(220), direccionFiscal = datos.direccionFiscal.orEmpty()) }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) {
+                _state.update { it.copy(aviso = AvisoVentaUi.Error("Consulta no disponible. Ingresa los datos proporcionados por el comprador.")) }
+            } finally { _state.update { it.copy(consultando = false) } }
+        }
+    }
+
+    suspend fun estadoFiscal(id: Long) = ventaApi.estadoFiscal(id)
+    suspend fun comprobanteLocal(id: Long) = ventaApi.comprobanteLocal(id)
 
     fun limpiarAviso() {
         _state.update { it.copy(aviso = null) }
@@ -113,24 +165,34 @@ class NuevaVentaViewModel(
 
     fun enviar() {
         val actual = _state.value
-        if (actual.enviando || actual.carrito.isEmpty()) return
+        if (actual.enviando || actual.consultando || actual.requiereRevision || actual.carrito.isEmpty() || !actual.pagoConfirmado) return
+        val identificado = actual.tipoComprobante != "NOTA_PEDIDO"
+        val longitud = if (actual.tipoComprobante == "FACTURA") 11 else 8
+        if (identificado && (actual.documento.length != longitud || actual.nombre.isBlank())) return
+        val clave = Uuid.random().toString()
         _state.update { it.copy(enviando = true, aviso = null) }
         viewModelScope.launch {
             try {
                 val detalles = actual.carrito.map { DetalleVentaRequestDto(it.first.id, it.second) }
                 val venta = ventaApi.crear(
                     VentaRequestDto(
-                        clienteId = actual.clienteId,
+                        clienteId = null,
                         tipoComprobante = actual.tipoComprobante,
-                        detalles = detalles
+                        detalles = detalles,
+                        idempotencyKey = clave,
+                        tipoDocumento = if (!identificado) null else if (actual.tipoComprobante == "FACTURA") "RUC" else "DNI",
+                        numeroDocumento = actual.documento.takeIf { identificado },
+                        clienteNombre = actual.nombre.trim().takeIf { identificado },
+                        metodoPago = "EFECTIVO"
                     )
                 )
                 val comprobante = venta.tipoComprobante ?: actual.tipoComprobante
-                val numero = venta.id?.let { "#$it" } ?: ""
+                val numero = listOfNotNull(venta.serie, venta.numero).joinToString("-").ifBlank { venta.id?.let { "#$it" } ?: "" }
                 _state.update {
                     it.copy(
                         enviando = false,
                         carrito = emptyList(),
+                        documento = "", nombre = "", direccionFiscal = "", pagoConfirmado = false,
                         aviso = AvisoVentaUi.Exito(
                             venta = venta,
                             mensaje = "Venta emitida correctamente: $comprobante $numero".trim()
@@ -139,16 +201,10 @@ class NuevaVentaViewModel(
                 }
                 cargarDatos()
                 sincronizarCompat()
-            } catch (e: ResponseException) {
-                val mensaje = mensajeErrorVenta(e)
-                _state.update { it.copy(enviando = false, aviso = AvisoVentaUi.Error(mensaje)) }
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(
-                        enviando = false,
-                        aviso = AvisoVentaUi.Error(e.message ?: "No se pudo emitir la venta.")
-                    )
-                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                _state.update { it.copy(enviando = false, requiereRevision = true,
+                    aviso = AvisoVentaUi.Error("No se confirmó el registro. Revisa el historial antes de iniciar otra venta. No repitas el cobro.")) }
             }
         }
     }

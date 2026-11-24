@@ -6,6 +6,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material3.AlertDialog
+import com.maranathastore.app.data.remote.VentaDto
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +95,8 @@ fun NuevaVentaScreen() {
     var busqueda by remember { mutableStateOf("") }
     var productoParaCantidad by remember { mutableStateOf<Producto?>(null) }
     var mostrarCheckout by remember { mutableStateOf(false) }
+    var mostrarPago by remember { mutableStateOf(false) }
+    var comprobante by remember { mutableStateOf<VentaDto?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -96,6 +105,8 @@ fun NuevaVentaScreen() {
         when (val aviso = uiState.aviso) {
             is AvisoVentaUi.Exito -> {
                 mostrarCheckout = false
+                mostrarPago = false
+                comprobante = aviso.venta
                 snackbarHostState.showSnackbar(aviso.mensaje)
                 vm.limpiarAviso()
             }
@@ -331,15 +342,18 @@ fun NuevaVentaScreen() {
             dragHandle = { Box(Modifier.padding(vertical = 10.dp).size(width = 42.dp, height = 4.dp).background(LiquidGlass.Borde, RoundedCornerShape(2.dp))) }
         ) {
             CheckoutVentaContent(
-                clientes = uiState.clientes,
-                clienteId = uiState.clienteId,
+                estado = uiState,
                 tipoComprobante = uiState.tipoComprobante,
                 total = total,
                 unidades = unidades,
                 enviando = uiState.enviando,
-                onClienteChange = vm::setClienteId,
+                onDocumento = vm::setDocumento,
+                onNombre = vm::setNombre,
+                onDireccion = vm::setDireccionFiscal,
+                onConsultar = vm::consultarRuc,
+                onPago = vm::confirmarPago,
                 onTipoComprobanteChange = vm::setTipoComprobante,
-                onConfirmar = { vm.enviar() },
+                onConfirmar = { mostrarCheckout = false; mostrarPago = true },
                 onCancelar = {
                     if (!uiState.enviando) {
                         scope.launch { sheetState.hide() }.invokeOnCompletion { mostrarCheckout = false }
@@ -348,28 +362,57 @@ fun NuevaVentaScreen() {
             )
         }
     }
+    if (mostrarPago) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.enviando) { mostrarPago = false; vm.confirmarPago(false) } },
+            containerColor = LiquidGlass.SuperficieDialogo,
+            title = { Text("Confirmar pago", color = LiquidGlass.Texto) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Total S/ ${formatearMonto(total)}", color = LiquidGlass.VerdeNeon, style = MaterialTheme.typography.headlineSmall)
+                    Text("Efectivo", color = LiquidGlass.Texto)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = uiState.pagoConfirmado, onCheckedChange = vm::confirmarPago, enabled = !uiState.enviando && !uiState.requiereRevision)
+                        Text("Confirmo que recibí el pago", color = LiquidGlass.Texto)
+                    }
+                    if (uiState.requiereRevision) Text("Revisa el historial antes de repetir la operación.", color = LiquidGlass.Peligro)
+                }
+            },
+            confirmButton = { Button(onClick = vm::enviar, enabled = uiState.pagoConfirmado && !uiState.enviando && !uiState.requiereRevision) { Text(if (uiState.enviando) "Registrando..." else "Confirmar venta") } },
+            dismissButton = { TextButton(enabled = !uiState.enviando, onClick = { mostrarPago = false; vm.confirmarPago(false); mostrarCheckout = true }) { Text("Volver") } }
+        )
+    }
+    comprobante?.let { venta -> SelectorComprobante(venta, onCerrar = { comprobante = null }, cargarEstado = vm::estadoFiscal, cargarComprobante = vm::comprobanteLocal) }
+
 }
 
 @Composable
 private fun CheckoutVentaContent(
-    clientes: List<ClienteDto>,
-    clienteId: Long?,
+    estado: NuevaVentaUiState,
     tipoComprobante: String,
     total: Double,
     unidades: Int,
     enviando: Boolean,
-    onClienteChange: (Long?) -> Unit,
+    onDocumento: (String) -> Unit,
+    onNombre: (String) -> Unit,
+    onDireccion: (String) -> Unit,
+    onConsultar: () -> Unit,
+    onPago: (Boolean) -> Unit,
     onTipoComprobanteChange: (String) -> Unit,
     onConfirmar: () -> Unit,
     onCancelar: () -> Unit
 ) {
-    var menuCliente by remember { mutableStateOf(false) }
-    val clienteSeleccionado = clientes.firstOrNull { it.id == clienteId }
+    val editable = !enviando && !estado.consultando && !estado.requiereRevision
+    val factura = tipoComprobante == "FACTURA"
+    val nota = tipoComprobante == "NOTA_PEDIDO"
+    val datosValidos = nota || (estado.documento.length == (if (factura) 11 else 8) && estado.nombre.isNotBlank())
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -386,87 +429,41 @@ private fun CheckoutVentaContent(
                 color = LiquidGlass.TextoSuave
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("BOLETA", "FACTURA", "NOTA").forEach { tipo ->
+                listOf("BOLETA", "FACTURA", "NOTA_PEDIDO").forEach { tipo ->
                     GlassChip(
-                        label = tipo,
+                        label = if (tipo == "NOTA_PEDIDO") "NOTA" else tipo,
                         selected = tipoComprobante == tipo,
                         onClick = { if (!enviando) onTipoComprobanteChange(tipo) },
-                        enabled = !enviando
+                        enabled = editable
                     )
                 }
             }
         }
 
-        Box {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { if (!enviando) menuCliente = true },
-                contentPadding = PaddingValues(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    GlassIconTile(
-                        icon = Icons.Default.Person,
-                        tint = LiquidGlass.Azul,
-                        container = LiquidGlass.Azul.copy(alpha = 0.12f),
-                        size = 42
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Cliente",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = LiquidGlass.TextoSuave
-                        )
-                        Text(
-                            text = clienteSeleccionado?.let {
-                                listOfNotNull(it.nombre, it.apellido)
-                                    .joinToString(" ")
-                                    .ifBlank { "Cliente #${it.id}" }
-                            } ?: "Sin cliente asignado",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = LiquidGlass.Texto,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = LiquidGlass.TextoSuave
-                    )
-                }
+        if (!nota) {
+            OutlinedTextField(value = estado.documento, onValueChange = onDocumento,
+                label = { Text(if (factura) "RUC (11 dígitos)" else "DNI (8 dígitos)") },
+                singleLine = true, enabled = editable, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            if (factura) {
+                Button(onClick = onConsultar, enabled = editable && estado.documento.length == 11,
+                    modifier = Modifier.fillMaxWidth()) { Text(if (estado.consultando) "Consultando..." else "Consultar RUC") }
             }
-
-            DropdownMenu(
-                expanded = menuCliente,
-                onDismissRequest = { menuCliente = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Sin cliente asignado") },
-                    onClick = {
-                        onClienteChange(null)
-                        menuCliente = false
-                    }
-                )
-                clientes.forEach { cliente ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                listOfNotNull(cliente.nombre, cliente.apellido)
-                                    .joinToString(" ")
-                                    .ifBlank { "Cliente #${cliente.id}" }
-                            )
-                        },
-                        onClick = {
-                            onClienteChange(cliente.id)
-                            menuCliente = false
-                        }
-                    )
-                }
+            OutlinedTextField(value = estado.nombre, onValueChange = onNombre,
+                label = { Text(if (factura) "Razón social" else "Nombre proporcionado por el comprador") },
+                enabled = editable, modifier = Modifier.fillMaxWidth())
+            if (factura) {
+                OutlinedTextField(value = estado.direccionFiscal, onValueChange = onDireccion,
+                    label = { Text("Dirección fiscal") }, enabled = editable,
+                    modifier = Modifier.fillMaxWidth())
             }
+            Text("Usa solo los datos necesarios para el comprobante.", color = LiquidGlass.TextoSuave,
+                style = MaterialTheme.typography.bodySmall)
+        } else {
+            Text("Nota de pedido sin identificación adicional.", color = LiquidGlass.TextoSuave)
+        }
+        if (estado.requiereRevision) {
+            Text("Registro sin confirmar. Revisa el historial antes de repetir la operación.", color = LiquidGlass.Peligro)
         }
 
         HorizontalDivider(color = LiquidGlass.Borde.copy(alpha = 0.25f))
@@ -501,7 +498,7 @@ private fun CheckoutVentaContent(
             }
             Button(
                 onClick = onConfirmar,
-                enabled = !enviando,
+                enabled = editable && datosValidos,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = LiquidGlass.Esmeralda,
                     contentColor = Color(0xFF00271A),
@@ -520,7 +517,7 @@ private fun CheckoutVentaContent(
                     Spacer(Modifier.width(10.dp))
                     Text("Emitiendo...")
                 } else {
-                    Text("Confirmar venta")
+                    Text("Continuar al pago")
                 }
             }
         }

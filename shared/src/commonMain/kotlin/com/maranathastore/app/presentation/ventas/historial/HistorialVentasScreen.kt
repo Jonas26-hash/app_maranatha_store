@@ -28,6 +28,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import com.maranathastore.app.presentation.ventas.SelectorComprobante
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +44,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maranathastore.app.data.remote.VentaDto
+import com.maranathastore.app.data.remote.etiquetaFiscal
 import com.maranathastore.app.presentation.components.GlassCard
 import com.maranathastore.app.presentation.components.GlassEmptyState
 import com.maranathastore.app.presentation.components.GlassIconTile
@@ -55,6 +58,11 @@ import kotlin.math.round
 fun HistorialVentasScreen() {
     val vm = koinViewModel<HistorialVentasViewModel>()
     val ventas by vm.ventas.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
+    val cargando by vm.cargando.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { vm.cargar() }
+    var laboratorio by remember { mutableStateOf(false) }
+    var imprimir by remember { mutableStateOf<VentaDto?>(null) }
 
     var ventaAAnular by remember { mutableStateOf<VentaDto?>(null) }
     var ventaDetalle by remember { mutableStateOf<VentaDto?>(null) }
@@ -87,7 +95,9 @@ fun HistorialVentasScreen() {
             }
         }
 
-        if (ventas.isEmpty()) {
+        TextButton(onClick = { laboratorio = true }, modifier = Modifier.padding(horizontal = 16.dp)) { Text("Laboratorio SUNAT Beta", color = LiquidGlass.VerdeNeon) }
+        if (error != null) { Text(error.orEmpty(), color = LiquidGlass.Peligro, modifier = Modifier.padding(16.dp)) }
+        if (cargando) { Text("Cargando ventas…", modifier = Modifier.padding(16.dp)) } else if (ventas.isEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -128,6 +138,8 @@ fun HistorialVentasScreen() {
             }
         }
     }
+
+    if (laboratorio) EvidenciaBetaDialog(vm::evidenciaBeta) { laboratorio = false }
 
     ventaAAnular?.let { venta ->
         AlertDialog(
@@ -178,17 +190,20 @@ fun HistorialVentasScreen() {
             ) {
                 VentaDetalleSheet(
                     venta = venta,
-                    onCerrar = { ventaDetalle = null }
+                    onCerrar = { ventaDetalle = null },
+                    onImprimir = { imprimir = venta; ventaDetalle = null }
                 )
             }
         }
     }
+    imprimir?.let { SelectorComprobante(it, onCerrar = { imprimir = null }, cargarEstado = vm::estadoFiscal, cargarComprobante = vm::comprobanteLocal) }
 }
 
 @Composable
 private fun VentaDetalleSheet(
     venta: VentaDto,
-    onCerrar: () -> Unit
+    onCerrar: () -> Unit,
+    onImprimir: () -> Unit
 ) {
     val anulada = venta.estado.equals("ANULADA", ignoreCase = true)
     val tono = if (anulada) LiquidGlass.Peligro else LiquidGlass.VerdeNeon
@@ -216,7 +231,7 @@ private fun VentaDetalleSheet(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "#${venta.id}",
+                        text = listOfNotNull(venta.serie, venta.numero).joinToString("-").ifBlank { "#${venta.id}" },
                         style = MaterialTheme.typography.labelLarge,
                         color = LiquidGlass.TextoSuave
                     )
@@ -258,15 +273,18 @@ private fun VentaDetalleSheet(
             }
 
             Text(
-                text = venta.clienteId?.let { "Cliente #$it" } ?: "Sin cliente asignado",
+                text = venta.clienteNombre?.takeIf { it.isNotBlank() } ?: venta.clienteId?.let { "Cliente #$it" } ?: "Comprador no identificado",
                 style = MaterialTheme.typography.bodyMedium,
                 color = LiquidGlass.TextoSuave
             )
 
+            Text("SUNAT: ${venta.etiquetaFiscal()}", color = LiquidGlass.TextoSuave)
+            venta.clienteDocumento?.let { Text(it, color = LiquidGlass.TextoSuave) }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
             ) {
+                TextButton(onClick = onImprimir) { Text("Comprobante") }
                 TextButton(onClick = onCerrar) {
                     Text("Cerrar", color = LiquidGlass.TextoSuave)
                 }
@@ -305,7 +323,7 @@ private fun VentaCard(
                     container = LiquidGlass.Azul.copy(alpha = 0.12f)
                 )
                 Text(
-                    text = "#${venta.id}",
+                    text = listOfNotNull(venta.serie, venta.numero).joinToString("-").ifBlank { "#${venta.id}" },
                     style = MaterialTheme.typography.titleSmall,
                     color = LiquidGlass.TextoSuave
                 )
@@ -317,6 +335,7 @@ private fun VentaCard(
                 )
             }
 
+            Text("SUNAT: ${venta.etiquetaFiscal()}", color = LiquidGlass.TextoSuave)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom,
@@ -342,7 +361,7 @@ private fun VentaCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = venta.clienteId?.let { "Cliente #$it" } ?: "Sin cliente asignado",
+                    text = venta.clienteNombre?.takeIf { it.isNotBlank() } ?: venta.clienteId?.let { "Cliente #$it" } ?: "Comprador no identificado",
                     style = MaterialTheme.typography.bodySmall,
                     color = LiquidGlass.TextoSuave,
                     modifier = Modifier.weight(1f)

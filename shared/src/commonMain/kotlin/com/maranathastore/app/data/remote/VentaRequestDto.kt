@@ -6,7 +6,12 @@ import kotlinx.serialization.Serializable
 data class VentaRequestDto(
     val clienteId: Long?,
     val tipoComprobante: String,
-    val detalles: List<DetalleVentaRequestDto>
+    val detalles: List<DetalleVentaRequestDto>,
+    val idempotencyKey: String,
+    val tipoDocumento: String? = null,
+    val numeroDocumento: String? = null,
+    val clienteNombre: String? = null,
+    val metodoPago: String? = null
 )
 
 @Serializable

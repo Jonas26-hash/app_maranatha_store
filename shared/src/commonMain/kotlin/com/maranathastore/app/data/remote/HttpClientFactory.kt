@@ -52,7 +52,7 @@ fun crearHttpClient(
     }
 
     install(Logging) {
-        level = LogLevel.INFO
+        level = LogLevel.NONE
         sanitizeHeader { header ->
             header.equals(HttpHeaders.Authorization, ignoreCase = true)
         }

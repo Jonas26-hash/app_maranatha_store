@@ -56,6 +56,7 @@ kotlin {
             implementation(libs.compose.ui.tooling)
             api(libs.koin.android)
             implementation(libs.ktor.client.okhttp)
+            implementation("com.google.zxing:core:3.5.3")
         }
 
         iosMain.dependencies {
