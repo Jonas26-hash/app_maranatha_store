@@ -1,4 +1,4 @@
-﻿package com.maranathastore.app.navigation
+package com.maranathastore.app.navigation
 
 enum class DestinoApp(val titulo: String, val descripcion: String) {
     INICIO(
@@ -25,6 +25,7 @@ enum class DestinoApp(val titulo: String, val descripcion: String) {
         titulo = "Reportes",
         descripcion = "Indicadores y alertas locales"
     ),
+    MI_YAPE("Mi Yape", "Receptor de notificaciones"),
     MARANATHA_AI(
         titulo = "Maranatha AI",
         descripcion = "Asistente conversacional"

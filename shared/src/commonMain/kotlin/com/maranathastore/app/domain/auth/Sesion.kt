@@ -17,7 +17,7 @@ enum class Rol {
          * el servidor agregara un rol nuevo.
          */
         fun desdeApi(valor: String): Rol =
-            if (valor.equals("ADMIN", ignoreCase = true)) ADMIN else USER
+            if (valor.removePrefix("ROLE_").equals("ADMIN", ignoreCase = true)) ADMIN else USER
     }
 }
 

@@ -1,4 +1,4 @@
-﻿package com.maranathastore.app.presentation.components
+package com.maranathastore.app.presentation.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -19,6 +19,7 @@ fun iconoDe(destino: DestinoApp): ImageVector = when (destino) {
     DestinoApp.NUEVA_VENTA -> Icons.Default.PointOfSale
     DestinoApp.HISTORIAL -> Icons.Default.History
     DestinoApp.REPORTES -> Icons.Default.QueryStats
+    DestinoApp.MI_YAPE -> Icons.Default.PointOfSale
     DestinoApp.MARANATHA_AI -> Icons.Default.SmartToy
 }
 

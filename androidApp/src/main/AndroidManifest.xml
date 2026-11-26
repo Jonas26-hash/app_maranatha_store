@@ -13,6 +13,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MaranathaStore">
+        <service android:name="com.maranathastore.app.presentation.yape.YapeListener"
+            android:label="Maranatha Store - Mi Yape" android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
         <activity
             android:exported="true"
             android:name=".MainActivity">

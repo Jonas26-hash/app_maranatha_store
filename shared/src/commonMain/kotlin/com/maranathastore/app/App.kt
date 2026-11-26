@@ -1,4 +1,4 @@
-﻿package com.maranathastore.app
+package com.maranathastore.app
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -55,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maranathastore.app.data.auth.GestorSesion
 import com.maranathastore.app.data.tema.GestorTema
 import com.maranathastore.app.data.tema.ModoTema
+import com.maranathastore.app.domain.auth.Rol
+import com.maranathastore.app.presentation.yape.MiYapeScreen
 import com.maranathastore.app.domain.auth.Sesion
 import com.maranathastore.app.navigation.DestinoApp
 import com.maranathastore.app.presentation.chat.MaranathaAIScreen
@@ -203,6 +205,7 @@ private fun ContenidoAutenticado(
                         DestinoApp.NUEVA_VENTA -> NuevaVentaScreen()
                         DestinoApp.HISTORIAL -> HistorialVentasScreen()
                         DestinoApp.REPORTES -> ReportesScreen()
+                        DestinoApp.MI_YAPE -> if (sesion.rol == Rol.ADMIN) MiYapeScreen(sesion.token)
                         DestinoApp.MARANATHA_AI -> MaranathaAIScreen()
                     }
                 }
@@ -266,7 +269,7 @@ private fun DrawerLiquidGlass(
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                DestinoApp.entries.forEach { destino ->
+                DestinoApp.entries.filter { it != DestinoApp.MI_YAPE || sesion.rol == Rol.ADMIN }.forEach { destino ->
                     NavigationDrawerItem(
                         label = {
                             Text(
