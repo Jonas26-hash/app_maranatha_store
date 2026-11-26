@@ -61,7 +61,6 @@ fun HistorialVentasScreen() {
     val error by vm.error.collectAsStateWithLifecycle()
     val cargando by vm.cargando.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.cargar() }
-    var laboratorio by remember { mutableStateOf(false) }
     var imprimir by remember { mutableStateOf<VentaDto?>(null) }
 
     var ventaAAnular by remember { mutableStateOf<VentaDto?>(null) }
@@ -95,7 +94,6 @@ fun HistorialVentasScreen() {
             }
         }
 
-        TextButton(onClick = { laboratorio = true }, modifier = Modifier.padding(horizontal = 16.dp)) { Text("Laboratorio SUNAT Beta", color = LiquidGlass.VerdeNeon) }
         if (error != null) { Text(error.orEmpty(), color = LiquidGlass.Peligro, modifier = Modifier.padding(16.dp)) }
         if (cargando) { Text("Cargando ventas…", modifier = Modifier.padding(16.dp)) } else if (ventas.isEmpty()) {
             Column(
@@ -139,7 +137,6 @@ fun HistorialVentasScreen() {
         }
     }
 
-    if (laboratorio) EvidenciaBetaDialog(vm::evidenciaBeta) { laboratorio = false }
 
     ventaAAnular?.let { venta ->
         AlertDialog(
@@ -196,7 +193,7 @@ fun HistorialVentasScreen() {
             }
         }
     }
-    imprimir?.let { SelectorComprobante(it, onCerrar = { imprimir = null }, cargarEstado = vm::estadoFiscal, cargarComprobante = vm::comprobanteLocal) }
+    imprimir?.let { SelectorComprobante(it, onCerrar = { imprimir = null }, cargarEstado = vm::estadoFiscal, cargarComprobante = vm::comprobanteLocal, cargarBeta = vm::evidenciaDeVenta) }
 }
 
 @Composable
@@ -273,13 +270,13 @@ private fun VentaDetalleSheet(
             }
 
             Text(
-                text = venta.clienteNombre?.takeIf { it.isNotBlank() } ?: venta.clienteId?.let { "Cliente #$it" } ?: "Comprador no identificado",
+                text = venta.compradorLocalNombre?.let { "$it (comprador local)" } ?: venta.clienteNombre?.takeIf { it.isNotBlank() } ?: venta.clienteId?.let { "Cliente #$it" } ?: "Comprador no identificado",
                 style = MaterialTheme.typography.bodyMedium,
                 color = LiquidGlass.TextoSuave
             )
 
             Text("SUNAT: ${venta.etiquetaFiscal()}", color = LiquidGlass.TextoSuave)
-            venta.clienteDocumento?.let { Text(it, color = LiquidGlass.TextoSuave) }
+            (venta.compradorLocalDocumento ?: venta.clienteDocumento)?.let { Text(it, color = LiquidGlass.TextoSuave) }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
@@ -361,7 +358,7 @@ private fun VentaCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = venta.clienteNombre?.takeIf { it.isNotBlank() } ?: venta.clienteId?.let { "Cliente #$it" } ?: "Comprador no identificado",
+                    text = venta.compradorLocalNombre?.let { "$it (comprador local)" } ?: venta.clienteNombre?.takeIf { it.isNotBlank() } ?: venta.clienteId?.let { "Cliente #$it" } ?: "Comprador no identificado",
                     style = MaterialTheme.typography.bodySmall,
                     color = LiquidGlass.TextoSuave,
                     modifier = Modifier.weight(1f)

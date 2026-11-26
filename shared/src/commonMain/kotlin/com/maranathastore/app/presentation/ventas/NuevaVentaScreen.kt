@@ -92,6 +92,7 @@ fun NuevaVentaScreen() {
     val vm = koinViewModel<NuevaVentaViewModel>()
     val uiState by vm.state.collectAsStateWithLifecycle()
 
+
     var busqueda by remember { mutableStateOf("") }
     var productoParaCantidad by remember { mutableStateOf<Producto?>(null) }
     var mostrarCheckout by remember { mutableStateOf(false) }
@@ -350,7 +351,7 @@ fun NuevaVentaScreen() {
                 onDocumento = vm::setDocumento,
                 onNombre = vm::setNombre,
                 onDireccion = vm::setDireccionFiscal,
-                onConsultar = vm::consultarRuc,
+                onConsultar = vm::consultarDocumento,
                 onPago = vm::confirmarPago,
                 onTipoComprobanteChange = vm::setTipoComprobante,
                 onConfirmar = { mostrarCheckout = false; mostrarPago = true },
@@ -373,16 +374,16 @@ fun NuevaVentaScreen() {
                     Text("Efectivo", color = LiquidGlass.Texto)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = uiState.pagoConfirmado, onCheckedChange = vm::confirmarPago, enabled = !uiState.enviando && !uiState.requiereRevision)
-                        Text("Confirmo que recibí el pago", color = LiquidGlass.Texto)
+                        Text(if (com.maranathastore.app.data.remote.ConfigApi.BASE_URL.contains(":18080")) "Confirmo el pago simulado" else "Confirmo que recibí el pago", color = LiquidGlass.Texto)
                     }
-                    if (uiState.requiereRevision) Text("Revisa el historial antes de repetir la operación.", color = LiquidGlass.Peligro)
+                    if (uiState.requiereRevision) Text(uiState.errorRegistro ?: "Revisa el historial antes de repetir la operacion.", color = LiquidGlass.Peligro)
                 }
             },
-            confirmButton = { Button(onClick = vm::enviar, enabled = uiState.pagoConfirmado && !uiState.enviando && !uiState.requiereRevision) { Text(if (uiState.enviando) "Registrando..." else "Confirmar venta") } },
+            confirmButton = { Button(onClick = vm::enviar, enabled = uiState.pagoConfirmado && !uiState.enviando && !uiState.requiereRevision) { Text(if (uiState.enviando) "Procesando comprobante..." else "Confirmar venta") } },
             dismissButton = { TextButton(enabled = !uiState.enviando, onClick = { mostrarPago = false; vm.confirmarPago(false); mostrarCheckout = true }) { Text("Volver") } }
         )
     }
-    comprobante?.let { venta -> SelectorComprobante(venta, onCerrar = { comprobante = null }, cargarEstado = vm::estadoFiscal, cargarComprobante = vm::comprobanteLocal) }
+    comprobante?.let { venta -> SelectorComprobante(venta, onCerrar = { comprobante = null }, cargarEstado = vm::estadoFiscal, cargarComprobante = vm::comprobanteLocal, cargarBeta = vm::evidenciaDeVenta, nuevaVenta = true) }
 
 }
 
@@ -445,10 +446,8 @@ private fun CheckoutVentaContent(
                 label = { Text(if (factura) "RUC (11 dígitos)" else "DNI (8 dígitos)") },
                 singleLine = true, enabled = editable, modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            if (factura) {
-                Button(onClick = onConsultar, enabled = editable && estado.documento.length == 11,
-                    modifier = Modifier.fillMaxWidth()) { Text(if (estado.consultando) "Consultando..." else "Consultar RUC") }
-            }
+            Button(onClick = onConsultar, enabled = editable && estado.documento.length == (if (factura) 11 else 8),
+                modifier = Modifier.fillMaxWidth()) { Text(if (estado.consultando) "Consultando..." else if (factura) "Consultar RUC" else "Consultar DNI") }
             OutlinedTextField(value = estado.nombre, onValueChange = onNombre,
                 label = { Text(if (factura) "Razón social" else "Nombre proporcionado por el comprador") },
                 enabled = editable, modifier = Modifier.fillMaxWidth())

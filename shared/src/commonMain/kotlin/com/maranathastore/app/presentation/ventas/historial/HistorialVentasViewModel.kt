@@ -19,7 +19,16 @@ class HistorialVentasViewModel(private val api: VentaApi) : ViewModel() {
     private val _cargando = MutableStateFlow(false)
     val cargando = _cargando.asStateFlow()
 
+    private var operacionLaboratorioPendiente: String? = null
+    suspend fun emitirLaboratorio(operacion: String): com.maranathastore.app.data.remote.ResultadoLaboratorioDto {
+        val clave = operacionLaboratorioPendiente ?: operacion
+        operacionLaboratorioPendiente = clave
+        val r = api.emitirLaboratorio(clave)
+        if (r.ambiente == "BETA" && !r.validezFiscal && r.serie == "F9B1" && r.estadoSunat == "ACEPTADO_BETA" && r.codigo == "0") operacionLaboratorioPendiente = null
+        return r
+    }
     suspend fun evidenciaBeta(numero: String) = api.evidenciaBeta(numero)
+    suspend fun evidenciaDeVenta(v: VentaDto) = api.evidenciaDeVenta(v)
     suspend fun estadoFiscal(id: Long) = api.estadoFiscal(id)
     suspend fun comprobanteLocal(id: Long) = api.comprobanteLocal(id)
 
