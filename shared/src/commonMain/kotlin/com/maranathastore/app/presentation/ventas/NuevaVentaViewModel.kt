@@ -42,6 +42,7 @@ data class NuevaVentaUiState(
     val consultando: Boolean = false,
     val pagoConfirmado: Boolean = false,
     val requiereRevision: Boolean = false,
+    val errorRegistro: String? = null,
     val enviando: Boolean = false,
     val aviso: AvisoVentaUi? = null
 )
@@ -56,6 +57,28 @@ class NuevaVentaViewModel(
     val state: StateFlow<NuevaVentaUiState> = _state.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
+    suspend fun cargarCatalogoBeta(numero: String) = ventaApi.evidenciaBeta(numero)
+    suspend fun emitirCatalogoCompletoBeta(clave: String, items: String, centimos: Long) = ventaApi.emitirCatalogoCompletoBeta(clave,items,centimos)
+    suspend fun emitirCatalogoBeta(clave: String, a: Int, b: Int, c: Int) = ventaApi.emitirCatalogoBeta(clave,a,b,c)
+
+
+    // Modo de laboratorio independiente del carrito, pago y venta comercial.
+    private var betaNuevaVentaPendiente: String? = null
+
+    suspend fun evidenciaBetaNuevaVenta(numero: String) = ventaApi.evidenciaBeta(numero)
+
+    suspend fun emitirBetaNuevaVenta(operacion: String): com.maranathastore.app.data.remote.ResultadoLaboratorioDto {
+        check(!_state.value.enviando && !_state.value.requiereRevision && _state.value.carrito.isEmpty())
+        val clave = betaNuevaVentaPendiente ?: operacion
+        betaNuevaVentaPendiente = clave
+        val respuesta = ventaApi.emitirLaboratorio(clave)
+        if (respuesta.ambiente == "BETA" && !respuesta.validezFiscal && respuesta.serie == "F9B1" &&
+            respuesta.estadoSunat == "ACEPTADO_BETA" && respuesta.codigo == "0") {
+            betaNuevaVentaPendiente = null
+        }
+        return respuesta
+    }
+
 
     // Compatibilidad temporal con accesos directos
     val productos = MutableStateFlow<List<Producto>>(emptyList())
@@ -140,6 +163,33 @@ class NuevaVentaViewModel(
         _state.update { it.copy(pagoConfirmado = valor) }
     }
 
+    fun consultarDocumento() {
+        val s = _state.value
+        if (s.tipoComprobante == "FACTURA") { consultarRuc(); return }
+        if (s.tipoComprobante != "BOLETA" || !s.documento.matches(Regex("[0-9]{8}")) || s.consultando || s.enviando || s.requiereRevision) return
+        _state.update { it.copy(consultando = true, nombre = "", direccionFiscal = "", clienteId = null, pagoConfirmado = false, aviso = null) }
+        viewModelScope.launch {
+            try {
+                val datos = facturacionApi.consultarDni(s.documento)
+                val nombre = listOf(datos.nombres, datos.apellidoPaterno, datos.apellidoMaterno).filter { it.isNotBlank() }.joinToString(" ").trim()
+                if (datos.numeroDocumento != s.documento || datos.nombres.isBlank() || nombre.isBlank()) error("Respuesta invalida")
+                _state.update { if (it.documento == s.documento && it.tipoComprobante == "BOLETA") it.copy(nombre = nombre.take(220)) else it }
+            } catch (e: CancellationException) { throw e }
+            catch (e: ResponseException) {
+                val mensaje = when (e.response.status.value) {
+                    401, 403 -> "Sesion o permisos insuficientes. Inicia sesion nuevamente."
+                    404 -> "DNI no encontrado. Verifica el numero con el comprador."
+                    429 -> "Limite de consultas alcanzado. Intenta mas tarde."
+                    503 -> "Consulta de identidad no configurada en el servidor."
+                    else -> "Consulta DNI no disponible (HTTP ${e.response.status.value}). Puedes ingresar los datos del comprador manualmente."
+                }
+                _state.update { it.copy(aviso = AvisoVentaUi.Error(mensaje)) }
+            } catch (_: Exception) {
+                _state.update { it.copy(aviso = AvisoVentaUi.Error("No se pudo consultar el DNI. Verifica la conexion o ingresa los datos del comprador.")) }
+            } finally { _state.update { it.copy(consultando = false) } }
+        }
+    }
+
     fun consultarRuc() {
         val s = _state.value
         if (s.tipoComprobante != "FACTURA" || !s.documento.matches(Regex("[0-9]{11}")) || s.consultando || s.enviando || s.requiereRevision) return
@@ -156,6 +206,7 @@ class NuevaVentaViewModel(
         }
     }
 
+    suspend fun evidenciaDeVenta(v: VentaDto) = ventaApi.evidenciaDeVenta(v)
     suspend fun estadoFiscal(id: Long) = ventaApi.estadoFiscal(id)
     suspend fun comprobanteLocal(id: Long) = ventaApi.comprobanteLocal(id)
 
@@ -187,6 +238,15 @@ class NuevaVentaViewModel(
                     )
                 )
                 val comprobante = venta.tipoComprobante ?: actual.tipoComprobante
+                // En la instancia de demo, solo se abre exito fiscal al verificar el archivo propio.
+                if (venta.serie in listOf("B9B1", "F9B1")) {
+                    if (venta.estadoSunat != "ACEPTADO_BETA" || venta.codigoRespuestaSunat != "0") {
+                        val msg = "Venta ${venta.serie}-${venta.numero} registrada; estado fiscal: ${venta.estadoSunat}. Revisa el historial. No vuelvas a cobrar."
+                        _state.update { it.copy(enviando=false, requiereRevision=true,errorRegistro=msg,aviso=AvisoVentaUi.Error(msg)) }
+                        return@launch
+                    }
+                    ventaApi.evidenciaDeVenta(venta)
+                }
                 val numero = listOfNotNull(venta.serie, venta.numero).joinToString("-").ifBlank { venta.id?.let { "#$it" } ?: "" }
                 _state.update {
                     it.copy(
@@ -203,9 +263,26 @@ class NuevaVentaViewModel(
                 sincronizarCompat()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                _state.update { it.copy(enviando = false, requiereRevision = true,
-                    aviso = AvisoVentaUi.Error("No se confirmó el registro. Revisa el historial antes de iniciar otra venta. No repitas el cobro.")) }
-            }
+    val mensaje = if (e is ResponseException) {
+        val detalle = try {
+            json.parseToJsonElement(e.response.bodyAsText())
+                .jsonObject["message"]?.jsonPrimitive?.contentOrNull
+        } catch (_: Exception) { null }
+
+        "HTTP ${e.response.status.value}: ${detalle ?: "Solicitud rechazada"}"
+    } else {
+        "Error de comunicacion o respuesta: ${e::class.simpleName}"
+    }
+
+    _state.update {
+        it.copy(
+            enviando = false,
+            requiereRevision = true,
+            errorRegistro = mensaje,
+            aviso = AvisoVentaUi.Error(mensaje)
+        )
+    }
+}
         }
     }
 

@@ -18,7 +18,7 @@ import com.maranathastore.app.data.remote.*
 import java.util.Locale
 
 /** Saves a narrow PDF without relying on the printer's advertised media sizes. */
-internal fun guardarTicket80(context: Context, venta: VentaDto, local: ComprobanteLocalDto?, beta: EvidenciaBetaDto?) {
+internal fun guardarTicket80(context: Context, venta: VentaDto, local: ComprobanteLocalDto?, beta: EvidenciaBetaDto?): android.net.Uri {
     // Apply the same checks as the HTML printer before using archived evidence.
     htmlComprobante(venta, "TICKET", local, beta)
     val ancho = 227 // PDF points, approximately 80 mm
@@ -37,11 +37,12 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
     fun monto(n: Double?) = n?.let { String.format(Locale.US, "%.2f", it) } ?: "—"
     val id = "${venta.serie.orEmpty()}-${venta.numero.orEmpty()}"
     texto("MARANATHA STORE", 16f, true, true)
+    venta.compradorLocalNombre?.let { texto("Comprador local (no fiscal): $it\n${venta.compradorLocalDocumento.orEmpty()}") }
     if (beta != null) {
         val campos = beta.contenidoQr.split('|')
         texto("MARANATHA BETA - PRUEBA\nRUC de laboratorio: ${campos[0]}", 9f, true)
-        texto("FACTURA DE PRUEBA\n$id", 12f, true, true)
-        texto("Cliente: ${beta.cliente ?: "Cliente de laboratorio"}\nRUC: ${campos[8]}\nFecha: ${beta.fecha}\nAceptado en Beta · Código 0")
+        texto("${venta.tipoComprobante} DE PRUEBA\n$id", 12f, true, true)
+        texto("Receptor fiscal de prueba: ${beta.cliente ?: "Cliente de laboratorio"}\nRUC: ${campos[8]}\nFecha: ${beta.fecha}\nAceptado en Beta · Código 0")
         texto("PRODUCTOS", 10f, false, true)
         if (beta.detalles.isEmpty()) texto("Detalle no disponible")
         beta.detalles.forEach { texto("${it.descripcion}\n${it.cantidad} × S/ ${it.precioUnitario}     S/ ${it.importe}") }
@@ -58,7 +59,7 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
     }
     val qr = QRCodeWriter().encode(beta?.contenidoQr ?: "MARANATHA|REGISTRO INTERNO|$id", BarcodeFormat.QR_CODE, 1, 1)
     val qrTam = 108f
-    val aviso = if (beta != null) "QR del XML firmado · Beta\nCOMPROBANTE DE PRUEBA\nSIN VALIDEZ FISCAL" else "QR de referencia interna\nNO ACREDITA VALIDACIÓN SUNAT"
+    val aviso = if (beta != null) "QR del XML firmado · Beta\nCOMPROBANTE DE PRUEBA\nSIN VALIDEZ FISCAL" else if (venta.serie in listOf("F9B1","B9B1","NP9B")) "QR de referencia interna\nREGISTRO DE PRUEBA · SIN VALIDEZ FISCAL" else "QR de referencia interna\nNO ACREDITA VALIDACIÓN SUNAT"
     val cuerpo = bloques.size
     texto(aviso, 9f, true, true)
     val alto = 2*margen + bloques.sumOf { it.height + 6 } + qrTam.toInt() + 12
@@ -90,5 +91,6 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
             resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
         } catch (e: Exception) { resolver.delete(uri, null, null); throw e }
         Toast.makeText(context, "PDF guardado en Descargas/Maranatha", Toast.LENGTH_LONG).show()
+        return uri
     } finally { pdf.close() }
 }

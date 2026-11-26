@@ -21,6 +21,7 @@ actual fun recordarImpresionComprobante(venta: VentaDto, formato: String, local:
             try {
                 if (formato == "TICKET" && android.os.Build.VERSION.SDK_INT >= 29) {
                     guardarTicket80(context, venta, local, beta)
+                    Unit
                 } else {
                 val html = htmlComprobante(venta, formato, local, beta)
                 val web = WebView(context)
@@ -47,6 +48,26 @@ actual fun recordarImpresionComprobante(venta: VentaDto, formato: String, local:
             } catch (_: Exception) {
                 Toast.makeText(context, "Comprobante no disponible para imprimir", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+}
+
+@Composable
+actual fun recordarCompartirComprobante(venta: VentaDto, local: ComprobanteLocalDto?, beta: EvidenciaBetaDto?): (() -> Unit)? {
+    val context = LocalContext.current
+    if (android.os.Build.VERSION.SDK_INT < 29) return null
+    return remember(context, venta, local, beta) {
+        {
+            try {
+                val uri = guardarTicket80(context, venta, local, beta)
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    clipData = android.content.ClipData.newUri(context.contentResolver, "Comprobante PDF", uri)
+                }
+                context.startActivity(android.content.Intent.createChooser(intent, "Compartir comprobante"))
+            } catch (_: Exception) { Toast.makeText(context, "No se pudo compartir el PDF", Toast.LENGTH_LONG).show() }
         }
     }
 }
