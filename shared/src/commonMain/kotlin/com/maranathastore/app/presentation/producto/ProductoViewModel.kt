@@ -18,10 +18,10 @@ import kotlinx.coroutines.launch
 
 class ProductoViewModel(
     private val repositorio: ProductoRepository,
-    gestorSesion: GestorSesion
+    private val gestorSesion: GestorSesion
 ) : ViewModel() {
 
-    private val esAdmin: Boolean = gestorSesion.sesion.value?.rol == Rol.ADMIN
+    private val esAdmin: Boolean get() = gestorSesion.sesion.value?.rol == Rol.ADMIN
 
     private val _uiState = MutableStateFlow(ProductosUiState(esAdmin = esAdmin))
     val uiState: StateFlow<ProductosUiState> = _uiState.asStateFlow()
@@ -67,7 +67,7 @@ class ProductoViewModel(
     }
 
     fun abrirCrear() {
-        if (!esAdmin) return
+        if (gestorSesion.sesion.value == null) return
         _uiState.update {
             it.copy(formulario = ProductoFormulario(ModoFormulario.CREAR))
         }
@@ -117,7 +117,7 @@ class ProductoViewModel(
 
     fun guardarFormulario() {
         val form = _uiState.value.formulario ?: return
-        if (form.guardando || !esAdmin) return
+        if (form.guardando || gestorSesion.sesion.value == null || (form.esEdicion && !esAdmin)) return
 
         val codigosExistentes = _uiState.value.productos
             .filter { p -> if (form.esEdicion) p.id != form.id else true }
@@ -227,7 +227,7 @@ class ProductoViewModel(
     }
 
     fun abrirAjusteStock(producto: ProductoUi) {
-        if (!esAdmin) return
+        if (gestorSesion.sesion.value == null) return
         _uiState.update {
             it.copy(
                 ajusteStock = AjusteStock(
@@ -249,7 +249,7 @@ class ProductoViewModel(
     fun onAjusteOperacionChange(operacion: OperacionStock) {
         val ajuste = _uiState.value.ajusteStock ?: return
         if (ajuste.guardando) return
-        if (!ajuste.activo && operacion == OperacionStock.DESCONTAR) return
+        if ((!ajuste.activo || !esAdmin) && operacion == OperacionStock.DESCONTAR) return
         _uiState.update {
             it.copy(ajusteStock = ajuste.copy(operacion = operacion, error = null))
         }
@@ -265,7 +265,7 @@ class ProductoViewModel(
 
     fun confirmarAjusteStock() {
         val ajuste = _uiState.value.ajusteStock ?: return
-        if (!esAdmin || ajuste.guardando) return
+        if (gestorSesion.sesion.value == null || ajuste.guardando || (!esAdmin && ajuste.operacion == OperacionStock.DESCONTAR)) return
 
         when (val resultado = ValidacionProducto.validarCantidad(ajuste.cantidad)) {
             is com.maranathastore.app.domain.producto.ResultadoCantidad.Invalida -> {

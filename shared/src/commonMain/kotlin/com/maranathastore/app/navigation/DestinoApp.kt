@@ -9,10 +9,6 @@ enum class DestinoApp(val titulo: String, val descripcion: String) {
         titulo = "Productos",
         descripcion = "Catálogo, precios y stock"
     ),
-    CLIENTES(
-        titulo = "Clientes",
-        descripcion = "Datos de tus compradores"
-    ),
     NUEVA_VENTA(
         titulo = "Nueva venta",
         descripcion = "Boletas, facturas y notas de pedido"
@@ -25,9 +21,5 @@ enum class DestinoApp(val titulo: String, val descripcion: String) {
         titulo = "Reportes",
         descripcion = "Indicadores y alertas locales"
     ),
-    MI_YAPE("Mi Yape", "Receptor de notificaciones"),
-    MARANATHA_AI(
-        titulo = "Maranatha AI",
-        descripcion = "Asistente conversacional"
-    )
+    MI_YAPE("Mi Yape", "Receptor de notificaciones")
 }

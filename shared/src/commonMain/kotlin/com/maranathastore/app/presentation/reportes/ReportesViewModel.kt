@@ -40,7 +40,7 @@ class ReportesViewModel(
                     cargando = false,
                     ingresosTotales = ventasValidas.sumOf { it.total ?: 0.0 },
                     cantidadOperaciones = ventasValidas.size,
-                    productosStockBajo = productos.count { it.stock <= 5 },
+                    productosStockBajo = productos.count { it.stock in 1..10 },
                     productosAgotados = productos.count { it.stock == 0 }
                 )
             } catch (e: Exception) {

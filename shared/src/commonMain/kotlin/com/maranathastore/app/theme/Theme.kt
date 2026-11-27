@@ -2,6 +2,8 @@ package com.maranathastore.app.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -60,7 +62,7 @@ private val EsquemaClaro = lightColorScheme(
     onPrimary = Papel,
     primaryContainer = MentaClaro,
     onPrimaryContainer = VerdeProfundoOscuro,
-    secondary = AzulElectrico,
+    secondary = Color(0xFF075A92),
     onSecondary = Papel,
     secondaryContainer = Color(0xFFD7ECFF),
     onSecondaryContainer = Color(0xFF00243D),
@@ -74,10 +76,10 @@ private val EsquemaClaro = lightColorScheme(
     onSurfaceVariant = ColorTextoVariante,
     outline = ColorContorno,
     outlineVariant = ColorContornoSuave,
-    error = Peligro,
+    error = Color(0xFFB32635),
     onError = Papel,
-    errorContainer = PeligroContenedor,
-    onErrorContainer = PeligroTexto,
+    errorContainer = Color(0xFFFFD9DD),
+    onErrorContainer = Color(0xFF650B19),
     scrim = androidx.compose.ui.graphics.Color.Black
 )
 
@@ -151,6 +153,6 @@ fun MaranathaTheme(
         colorScheme = if (darkTheme) EsquemaOscuro else EsquemaClaro,
         typography = Tipografia,
         shapes = Formas,
-        content = content
+        content = { CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) { content() } }
     )
 }

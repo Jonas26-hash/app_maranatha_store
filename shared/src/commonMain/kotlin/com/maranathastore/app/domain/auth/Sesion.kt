@@ -7,7 +7,7 @@ enum class Rol {
     val etiqueta: String
         get() = when (this) {
             ADMIN -> "Administrador"
-            USER -> "Usuario"
+            USER -> "Vendedor"
         }
 
     companion object {

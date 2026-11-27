@@ -22,7 +22,9 @@ fun SelectorComprobante(venta: VentaDto, onCerrar: () -> Unit,
     var beta by remember(venta.id, venta.estado, venta.estadoSunat) { mutableStateOf<EvidenciaBetaDto?>(null) }
     val requiereBeta = venta.estadoSunat == "ACEPTADO_BETA" && venta.estado != "ANULADA"
     var aviso by remember(venta.id, venta.estado, venta.estadoSunat) { mutableStateOf<String?>(null) }
-    LaunchedEffect(venta.id, venta.estado, venta.estadoSunat) {
+    var intento by remember(venta.id) { mutableStateOf(0) }
+    LaunchedEffect(venta.id, venta.estado, venta.estadoSunat, intento) {
+        aviso = null
         val id = venta.id ?: return@LaunchedEffect
         try { fiscal = cargarEstado?.invoke(id)?.takeIf { it.ventaId == id && it.serie == venta.serie && it.numero == venta.numero } }
         catch (e: CancellationException) { throw e }
@@ -51,6 +53,7 @@ fun SelectorComprobante(venta: VentaDto, onCerrar: () -> Unit,
                     Text("SUNAT: ${venta.etiquetaFiscal()}", color = LiquidGlass.TextoSuave)
                     venta.compradorLocalNombre?.let { Text("Comprador local: $it · ${venta.compradorLocalDocumento.orEmpty()}", color = LiquidGlass.Texto) }
                     if (requiereBeta && beta == null) Text(aviso ?: "Verificando XML y CDR...", color = LiquidGlass.TextoSuave)
+                    if (requiereBeta && beta == null && aviso != null) TextButton(onClick = { intento++ }) { Text("Reintentar verificación") }
                     Button(onClick = { formato = "TICKET" }, enabled = !requiereBeta || beta != null, modifier = Modifier.fillMaxWidth()) { Text("Ticket 80 mm") }
                     Button(onClick = { formato = "A4" }, enabled = !requiereBeta || beta != null, modifier = Modifier.fillMaxWidth()) { Text("Hoja A4") }
                     Text("Compartir comprobante", color = LiquidGlass.Texto)
@@ -60,7 +63,7 @@ fun SelectorComprobante(venta: VentaDto, onCerrar: () -> Unit,
                     Text("${venta.tipoComprobante.orEmpty()} ${venta.serie.orEmpty()}-${venta.numero.orEmpty()}", color = LiquidGlass.VerdeNeon)
                     Text(venta.fecha.orEmpty(), color = LiquidGlass.TextoSuave)
                     venta.compradorLocalNombre?.let { Text("Comprador local (no fiscal): $it", color = LiquidGlass.Texto); Text(venta.compradorLocalDocumento.orEmpty(), color = LiquidGlass.TextoSuave) }
-                    Text((if(requiereBeta) "Receptor fiscal de prueba: " else "Cliente: ") + (venta.clienteNombre ?: "Comprador no identificado"), color = LiquidGlass.Texto)
+                    Text("Cliente: " + (venta.clienteNombre ?: "Comprador no identificado"), color = LiquidGlass.Texto)
                     venta.clienteDocumento?.let { Text(it, color = LiquidGlass.TextoSuave) }
                     HorizontalDivider()
                     venta.detalles.orEmpty().forEach { Text("${it.cantidad ?: 0} x ${it.productoNombre ?: "Producto #${it.productoId}"} · S/ ${it.subtotal ?: 0.0}", color = LiquidGlass.Texto) }
@@ -74,7 +77,7 @@ fun SelectorComprobante(venta: VentaDto, onCerrar: () -> Unit,
                     if(beta != null) {
                         Text("IGV: S/ ${beta!!.igv} · Total: S/ ${beta!!.total}", color = LiquidGlass.Texto)
                         com.maranathastore.app.presentation.ventas.historial.QrEvidenciaBeta(beta!!.contenidoQr)
-                        Text("XML firmado · CDR código 0 · Sin validez fiscal", color = LiquidGlass.TextoSuave)
+                        Text("Referencia Beta: ${beta!!.comprobante} · XML firmado · CDR código 0 · Sin validez fiscal", color = LiquidGlass.TextoSuave)
                     } else Text(if (requiereBeta) "QR fiscal pendiente de verificar" else "Registro interno. No acredita validación SUNAT.", color = LiquidGlass.TextoSuave)
                 }
             }

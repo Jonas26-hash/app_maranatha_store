@@ -12,11 +12,11 @@ data class ConsultaRucDto(val ruc: String, val razonSocial: String, val estado: 
 class FacturacionApi(private val client: HttpClient) {
     suspend fun consultarDni(dni: String): ConsultaDniDto {
         require(dni.matches(Regex("[0-9]{8}")))
-        return client.get("facturacion/dni/$dni") { timeout { requestTimeoutMillis = 25000; socketTimeoutMillis = 22000 } }.body()
+        return client.get("clientes/documentos/dni/$dni") { timeout { requestTimeoutMillis = 25000; socketTimeoutMillis = 22000 } }.body()
     }
     suspend fun consultarRuc(ruc: String): ConsultaRucDto {
         require(ruc.matches(Regex("[0-9]{11}")))
-        return alAplicacion { client.get("facturacion/ruc/$ruc").body() }
+        return client.get("api/facturacion/ruc/$ruc") { timeout { requestTimeoutMillis = 25000; socketTimeoutMillis = 22000 } }.body()
     }
 }
 

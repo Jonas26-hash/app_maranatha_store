@@ -121,7 +121,7 @@ fun NuevaVentaScreen() {
 
     val total = uiState.carrito.sumOf { (producto, cantidad) -> producto.precio.comoDouble * cantidad }
     val unidades = uiState.carrito.sumOf { it.second }
-    val filtrados = uiState.productos.filter { producto ->
+    val filtrados = uiState.productos.map { p -> p.copy(stock = (p.stock - (uiState.carrito.firstOrNull { it.first.id == p.id }?.second ?: 0)).coerceAtLeast(0)) }.filter { producto ->
         producto.activo && (
             busqueda.isBlank() ||
                 producto.nombre.lowercase().contains(busqueda.trim().lowercase()) ||
@@ -305,7 +305,14 @@ fun NuevaVentaScreen() {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 8.dp)
-        )
+        ) { data ->
+            androidx.compose.material3.Snackbar(
+                snackbarData = data,
+                containerColor = LiquidGlass.SuperficieDialogo,
+                contentColor = LiquidGlass.Texto,
+                actionColor = LiquidGlass.VerdeNeon
+            )
+        }
     }
 
     productoParaCantidad?.let { producto ->

@@ -59,8 +59,6 @@ import com.maranathastore.app.domain.auth.Rol
 import com.maranathastore.app.presentation.yape.MiYapeScreen
 import com.maranathastore.app.domain.auth.Sesion
 import com.maranathastore.app.navigation.DestinoApp
-import com.maranathastore.app.presentation.chat.MaranathaAIScreen
-import com.maranathastore.app.presentation.clientes.ClientesScreen
 import com.maranathastore.app.presentation.components.GlassIconTile
 import com.maranathastore.app.presentation.components.GlassNavigationBar
 import com.maranathastore.app.presentation.components.GlassTopBar
@@ -136,7 +134,7 @@ private fun ContenidoAutenticado(
     onCambiarTema: (ModoTema) -> Unit,
     onCerrarSesion: () -> Unit
 ) {
-    var destinoActual by remember { mutableStateOf(DestinoApp.INICIO) }
+    var destinoActual by remember(sesion.usuario, sesion.rol) { mutableStateOf(DestinoApp.INICIO) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -168,7 +166,6 @@ private fun ContenidoAutenticado(
                     titulo = destinoActual.titulo,
                     subtitulo = destinoActual.descripcion,
                     onMenu = { scope.launch { drawerState.open() } },
-                    onMaranathaAi = { destinoActual = DestinoApp.MARANATHA_AI },
                     modifier = Modifier.statusBarsPadding()
                 )
             },
@@ -201,12 +198,10 @@ private fun ContenidoAutenticado(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        DestinoApp.CLIENTES -> ClientesScreen()
                         DestinoApp.NUEVA_VENTA -> NuevaVentaScreen()
                         DestinoApp.HISTORIAL -> HistorialVentasScreen()
-                        DestinoApp.REPORTES -> ReportesScreen()
+                        DestinoApp.REPORTES -> if (sesion.rol == Rol.ADMIN) ReportesScreen()
                         DestinoApp.MI_YAPE -> if (sesion.rol == Rol.ADMIN) MiYapeScreen(sesion.token)
-                        DestinoApp.MARANATHA_AI -> MaranathaAIScreen()
                     }
                 }
             }
@@ -269,7 +264,7 @@ private fun DrawerLiquidGlass(
                     .padding(horizontal = 10.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                DestinoApp.entries.filter { it != DestinoApp.MI_YAPE || sesion.rol == Rol.ADMIN }.forEach { destino ->
+                DestinoApp.entries.filter { it !in listOf(DestinoApp.MI_YAPE, DestinoApp.REPORTES) || sesion.rol == Rol.ADMIN }.forEach { destino ->
                     NavigationDrawerItem(
                         label = {
                             Text(

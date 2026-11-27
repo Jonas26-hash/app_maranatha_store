@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,7 +29,6 @@ fun GlassTopBar(
     titulo: String,
     subtitulo: String,
     onMenu: () -> Unit,
-    onMaranathaAi: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     GlassCard(
@@ -73,22 +71,6 @@ fun GlassTopBar(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(LiquidGlass.VerdeNeon.copy(alpha = 0.14f))
-                    .border(1.dp, LiquidGlass.VerdeNeon.copy(alpha = 0.45f), CircleShape)
-            ) {
-                IconButton(onClick = onMaranathaAi, modifier = Modifier.size(42.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "Abrir Maranatha AI",
-                        tint = LiquidGlass.VerdeNeon,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
         }
     }
 }

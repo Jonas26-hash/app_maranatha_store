@@ -97,8 +97,8 @@ class NuevaVentaViewModel(
                 val prods = productoRepository.listar()
                 _state.update { it.copy(productos = prods) }
                 sincronizarCompat()
-            } catch (_: Exception) {
-                // Mantener estado actual; la UI puede reintentar desde acciones del usuario si aplica
+            } catch (e: CancellationException) { throw e } catch (_: Exception) {
+                _state.update { it.copy(aviso = AvisoVentaUi.Error("No se pudo cargar el catálogo. Verifica la conexión al servidor.")) }
             }
         }
     }
@@ -106,7 +106,8 @@ class NuevaVentaViewModel(
     fun agregar(producto: Producto, cantidad: Int) {
         if (cantidad <= 0 || _state.value.enviando || _state.value.requiereRevision) return
         val acumulado = _state.value.carrito.firstOrNull { it.first.id == producto.id }?.second ?: 0
-        if (cantidad > producto.stock - acumulado) {
+        val stockReal = _state.value.productos.firstOrNull { it.id == producto.id }?.stock ?: 0
+        if (cantidad > stockReal - acumulado) {
             _state.update { it.copy(aviso = AvisoVentaUi.Error("Stock insuficiente")) }
             return
         }
@@ -117,7 +118,7 @@ class NuevaVentaViewModel(
                 val existente = lista[idx]
                 lista[idx] = existente.first to (existente.second + cantidad)
             } else {
-                lista.add(producto to cantidad)
+                lista.add(producto.copy(stock = stockReal) to cantidad)
             }
             actual.copy(carrito = lista, aviso = null, pagoConfirmado = false)
         }
@@ -144,8 +145,10 @@ class NuevaVentaViewModel(
 
     fun setDocumento(valor: String) {
         if (_state.value.enviando || _state.value.consultando || _state.value.requiereRevision) return
+        val anterior = _state.value.documento
         val limite = if (_state.value.tipoComprobante == "FACTURA") 11 else 8
         _state.update { it.copy(documento = valor.filter { c -> c in '0'..'9' }.take(limite), nombre = "", direccionFiscal = "", pagoConfirmado = false) }
+        if (_state.value.documento != anterior && _state.value.documento.length == limite) consultarDocumento()
     }
 
     fun setNombre(valor: String) {

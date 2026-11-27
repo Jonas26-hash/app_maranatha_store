@@ -40,8 +40,7 @@ private val DestinosBarra = listOf(
     DestinoApp.INICIO,
     DestinoApp.PRODUCTOS,
     DestinoApp.NUEVA_VENTA,
-    DestinoApp.HISTORIAL,
-    DestinoApp.MARANATHA_AI
+    DestinoApp.HISTORIAL
 )
 
 private fun etiquetaCorta(destino: DestinoApp): String = when (destino) {
@@ -49,7 +48,6 @@ private fun etiquetaCorta(destino: DestinoApp): String = when (destino) {
     DestinoApp.PRODUCTOS -> "Productos"
     DestinoApp.NUEVA_VENTA -> "Venta"
     DestinoApp.HISTORIAL -> "Historial"
-    DestinoApp.MARANATHA_AI -> "IA"
     else -> destino.titulo
 }
 

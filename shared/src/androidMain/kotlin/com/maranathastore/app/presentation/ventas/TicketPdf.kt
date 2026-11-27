@@ -38,7 +38,7 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
     val id = "${venta.serie.orEmpty()}-${venta.numero.orEmpty()}"
     texto("MARANATHA STORE", 16f, true, true)
     venta.compradorLocalNombre?.let { texto("Comprador local (no fiscal): $it\n${venta.compradorLocalDocumento.orEmpty()}") }
-    if (beta != null) {
+    if (beta != null && venta.serie !in listOf("B001", "F001")) {
         val campos = beta.contenidoQr.split('|')
         texto("MARANATHA BETA - PRUEBA\nRUC de laboratorio: ${campos[0]}", 9f, true)
         texto("${venta.tipoComprobante} DE PRUEBA\n$id", 12f, true, true)
@@ -59,7 +59,7 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
     }
     val qr = QRCodeWriter().encode(beta?.contenidoQr ?: "MARANATHA|REGISTRO INTERNO|$id", BarcodeFormat.QR_CODE, 1, 1)
     val qrTam = 108f
-    val aviso = if (beta != null) "QR del XML firmado · Beta\nCOMPROBANTE DE PRUEBA\nSIN VALIDEZ FISCAL" else if (venta.serie in listOf("F9B1","B9B1","NP9B")) "QR de referencia interna\nREGISTRO DE PRUEBA · SIN VALIDEZ FISCAL" else "QR de referencia interna\nNO ACREDITA VALIDACIÓN SUNAT"
+    val aviso = if (beta != null) "QR del XML firmado · Beta ${beta.comprobante}\nCOMPROBANTE DE PRUEBA\nSIN VALIDEZ FISCAL" else if (venta.serie in listOf("F9B1","B9B1","NP9B")) "QR de referencia interna\nREGISTRO DE PRUEBA · SIN VALIDEZ FISCAL" else "QR de referencia interna\nNO ACREDITA VALIDACIÓN SUNAT"
     val cuerpo = bloques.size
     texto(aviso, 9f, true, true)
     val alto = 2*margen + bloques.sumOf { it.height + 6 } + qrTam.toInt() + 12

@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.maranathastore.app.domain.auth.Rol
 import com.maranathastore.app.domain.auth.Sesion
 import com.maranathastore.app.domain.venta.Venta
 import com.maranathastore.app.navigation.DestinoApp
@@ -123,6 +124,7 @@ fun InicioScreen(
 
                 is DashboardUiState.Success -> ContenidoDashboard(
                     estado = actual,
+                    esAdmin = sesion.rol == Rol.ADMIN,
                     onNavegar = onNavegar,
                     onActualizar = { viewModel.cargar() }
                 )
@@ -320,6 +322,7 @@ private fun DashboardVacio(
 @Composable
 private fun ContenidoDashboard(
     estado: DashboardUiState.Success,
+    esAdmin: Boolean,
     onNavegar: (DestinoApp) -> Unit,
     onActualizar: () -> Unit
 ) {
@@ -355,7 +358,7 @@ private fun ContenidoDashboard(
                     tono = LiquidGlass.VerdeNeon,
                     modifier = Modifier.weight(1f)
                 )
-                MiniMetrica(
+                if (esAdmin) MiniMetrica(
                     titulo = "Ventas del mes",
                     valor = formatearMontoResumen(estado.ventasMes),
                     detalle = "Mes actual",
@@ -364,7 +367,7 @@ private fun ContenidoDashboard(
                     modifier = Modifier.weight(1f)
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (esAdmin) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MiniMetrica(
                     titulo = "Ticket promedio",
                     valor = formatearMontoResumen(estado.ticketPromedio),
@@ -385,10 +388,11 @@ private fun ContenidoDashboard(
         }
     }
 
-    Reveal(delayMillis = 120) {
+    if (esAdmin) Reveal(delayMillis = 120) {
         GraficoVentasCard(serie = estado.serieVentas)
     }
 
+    if (esAdmin) {
     Reveal(delayMillis = 180) {
         GlassSectionHeader(
             titulo = "Ventas recientes",
@@ -424,6 +428,7 @@ private fun ContenidoDashboard(
         }
     }
 
+    }
     Reveal(delayMillis = 420) {
         GlassSectionHeader(
             titulo = "Alertas de inventario",
@@ -446,7 +451,7 @@ private fun ContenidoDashboard(
             MiniMetrica(
                 titulo = "Stock bajo",
                 valor = estado.stockBajo.toString(),
-                detalle = "1 a 5 unidades",
+                detalle = "1 a 10 unidades",
                 icono = Icons.Default.WarningAmber,
                 tono = LiquidGlass.Ambar,
                 modifier = Modifier.weight(1f)
@@ -541,7 +546,7 @@ private fun ContenidoDashboard(
                 modifier = Modifier.weight(1f),
                 onClick = { onNavegar(DestinoApp.HISTORIAL) }
             )
-            AccesoRapido(
+            if (esAdmin) AccesoRapido(
                 titulo = "Reportes",
                 icono = Icons.Default.QueryStats,
                 tono = LiquidGlass.Esmeralda,

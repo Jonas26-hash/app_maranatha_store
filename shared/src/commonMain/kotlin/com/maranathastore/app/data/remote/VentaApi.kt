@@ -51,12 +51,22 @@ class VentaApi(private val client: HttpClient) {
         client.post("ventas/laboratorio/emision-beta/$operacion?a=$a&b=$b&c=$c") {
             timeout { requestTimeoutMillis = 125000; socketTimeoutMillis = 120000 }
         }.body()
-    suspend fun evidenciaBeta(numero: String): EvidenciaBetaDto = client.get("facturacion/laboratorio/comprobantes/$numero").body()
+    suspend fun evidenciaBeta(numero: String): EvidenciaBetaDto = client.get("api/facturacion/laboratorio/comprobantes/$numero").body()
     suspend fun evidenciaDeVenta(v: VentaDto): EvidenciaBetaDto {
-        require(v.serie in listOf("F9B1", "B9B1") && v.numero?.matches(Regex("[0-9]{8}")) == true)
-        val b: EvidenciaBetaDto = client.get("facturacion/laboratorio/comprobantes/${v.serie}/${v.numero}").body()
+        require(v.estadoSunat == "ACEPTADO_BETA" && v.estado == "EMITIDA")
+        val esperada = if (v.tipoComprobante == "BOLETA") "B9B1" else "F9B1"
+        require(v.tipoComprobante in listOf("BOLETA", "FACTURA"))
+        val referencia = if (v.serie in listOf("B001", "F001")) {
+            val id = requireNotNull(v.id)
+            val r: ReferenciaBetaDto = client.get("api/ventas/$id/comprobante-beta").body()
+            require(r.ventaId == id && r.serieComercial == v.serie && r.numeroComercial == v.numero && r.aceptado && !r.validezFiscal && r.ambiente == "BETA")
+            r.serie to r.numero
+        } else requireNotNull(v.serie) to requireNotNull(v.numero)
+        val (serie, numero) = referencia
+        require(serie == esperada && numero.matches(Regex("[0-9]{8}")))
+        val b: EvidenciaBetaDto = client.get("api/facturacion/laboratorio/comprobantes/$serie/$numero").body()
         val c = b.contenidoQr.split('|')
-        require(v.estadoSunat == "ACEPTADO_BETA" && v.estado != "ANULADA" && b.ambiente == "BETA" && !b.validezFiscal && b.codigo == "0" && b.estadoSunat == "ACEPTADO_BETA" && b.comprobante == "${v.serie}-${v.numero}" && c.size == 10 && c[2] == v.serie && c[3] == v.numero && c[1] == (if (v.tipoComprobante == "BOLETA") "03" else "01") && c[9].isNotBlank() && kotlin.math.abs((b.total.toDoubleOrNull() ?: -1.0) - (v.total ?: -2.0)) < 0.005)
+        require(b.ambiente == "BETA" && !b.validezFiscal && b.codigo == "0" && b.estadoSunat == "ACEPTADO_BETA" && b.comprobante == "$serie-$numero" && c.size == 10 && c[0] == "20123456786" && c[2] == serie && c[3] == numero && c[1] == (if (v.tipoComprobante == "BOLETA") "03" else "01") && c[6] == b.fecha && c[7] == "6" && c[8] == "20123456786" && c[9].isNotBlank() && kotlin.math.abs((b.total.toDoubleOrNull() ?: -1.0) - (v.total ?: -2.0)) < 0.005)
         return b
     }
     suspend fun estadoFiscal(id: Long): EstadoFiscalDto = client.get("ventas/$id/estado-sunat").body()
@@ -76,7 +86,7 @@ fun VentaDto.etiquetaFiscal(): String = if (estado == "ANULADA") "Anulado intern
     "NO_APLICA" -> "No aplica"
     "PENDIENTE" -> "Pendiente"
     "EN_PROCESO" -> "En proceso"
-    "ACEPTADO_BETA" -> "Activo · Beta"
+    "ACEPTADO_BETA" -> "Aceptado en Beta"
     "OBSERVADO_BETA" -> "Observado en Beta"
     "RECHAZADO_BETA" -> "Rechazado en Beta"
     "ERROR_COMUNICACION" -> "Error de comunicación"
@@ -95,3 +105,6 @@ data class LineaBetaDto(val descripcion: String, val cantidad: String, val preci
 
 @Serializable
 data class ResultadoLaboratorioDto(val serie: String, val numero: String, val estadoSunat: String, val codigo: String? = null, val ambiente: String, val validezFiscal: Boolean)
+
+@Serializable
+data class ReferenciaBetaDto(val ventaId: Long, val serieComercial: String, val numeroComercial: String, val serie: String, val numero: String, val ambiente: String, val validezFiscal: Boolean, val aceptado: Boolean)

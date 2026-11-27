@@ -151,7 +151,7 @@ fun ProductoScreen(
                             tint = LiquidGlass.TextoSuave
                         )
                     }
-                    if (estado.esAdmin) {
+                    run {
                         Button(
                             onClick = { viewModel.abrirCrear() },
                             shape = RoundedCornerShape(16.dp),
@@ -325,6 +325,7 @@ fun ProductoScreen(
 
     estado.ajusteStock?.let { ajuste ->
         AjusteStockDialog(
+            esAdmin = estado.esAdmin,
             ajuste = ajuste,
             onCerrar = { viewModel.cerrarAjusteStock() },
             onOperacionChange = viewModel::onAjusteOperacionChange,
@@ -411,7 +412,7 @@ private fun ProductoCard(
                     }
                 }
 
-                if (esAdmin) {
+                run {
                     Box {
                         IconButton(onClick = { menuAbierto = true }) {
                             Icon(
@@ -424,7 +425,7 @@ private fun ProductoCard(
                             expanded = menuAbierto,
                             onDismissRequest = { menuAbierto = false }
                         ) {
-                            DropdownMenuItem(
+                            if (esAdmin) DropdownMenuItem(
                                 text = { Text("Editar") },
                                 onClick = {
                                     menuAbierto = false
@@ -438,8 +439,8 @@ private fun ProductoCard(
                                     onAjustarStock()
                                 }
                             )
-                            HorizontalDivider()
-                            DropdownMenuItem(
+                            if (esAdmin) HorizontalDivider()
+                            if (esAdmin) DropdownMenuItem(
                                 text = {
                                     Text(
                                         text = "Eliminar",
@@ -689,6 +690,7 @@ private fun ProductoFormularioDialog(
 
 @Composable
 private fun AjusteStockDialog(
+    esAdmin: Boolean,
     ajuste: AjusteStock,
     onCerrar: () -> Unit,
     onOperacionChange: (OperacionStock) -> Unit,
@@ -720,7 +722,7 @@ private fun AjusteStockDialog(
                         onClick = { onOperacionChange(OperacionStock.REPONER) },
                         enabled = !ajuste.guardando
                     )
-                    GlassChip(
+                    if (esAdmin) GlassChip(
                         label = "Descontar (−)",
                         selected = ajuste.operacion == OperacionStock.DESCONTAR,
                         onClick = { onOperacionChange(OperacionStock.DESCONTAR) },
