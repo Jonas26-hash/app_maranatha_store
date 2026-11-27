@@ -37,11 +37,14 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
     fun monto(n: Double?) = n?.let { String.format(Locale.US, "%.2f", it) } ?: "—"
     val id = "${venta.serie.orEmpty()}-${venta.numero.orEmpty()}"
     texto("MARANATHA STORE", 16f, true, true)
-    venta.compradorLocalNombre?.let { texto("Comprador local (no fiscal): $it\n${venta.compradorLocalDocumento.orEmpty()}") }
-    if (beta != null && venta.serie !in listOf("B001", "F001")) {
+    if (beta != null) {
         val campos = beta.contenidoQr.split('|')
         texto("MARANATHA BETA - PRUEBA\nRUC de laboratorio: ${campos[0]}", 9f, true)
-        texto("${venta.tipoComprobante} DE PRUEBA\n$id", 12f, true, true)
+        texto("${venta.tipoComprobante} DE PRUEBA\n${beta.comprobante}", 12f, true, true)
+        datosCompradorLocal(venta, beta != null)?.let { comprador ->
+            texto("Comprador local (no fiscal): ${comprador.nombre}")
+            comprador.documento?.let { texto("${comprador.etiquetaDocumento}: $it") }
+        }
         texto("Receptor fiscal de prueba: ${beta.cliente ?: "Cliente de laboratorio"}\nRUC: ${campos[8]}\nFecha: ${beta.fecha}\nAceptado en Beta · Código 0")
         texto("PRODUCTOS", 10f, false, true)
         if (beta.detalles.isEmpty()) texto("Detalle no disponible")
@@ -50,6 +53,10 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
         texto("TOTAL S/ ${beta.total}", 15f, true, true)
     } else {
         texto("${venta.tipoComprobante.orEmpty().replace('_',' ')} / REGISTRO INTERNO\n$id", 11f, true, true)
+        datosCompradorLocal(venta, beta != null)?.let { comprador ->
+            texto("Comprador local (no fiscal): ${comprador.nombre}")
+            comprador.documento?.let { texto("${comprador.etiquetaDocumento}: $it") }
+        }
         texto("Datos fiscales del emisor pendientes\nCliente: ${venta.clienteNombre ?: "Comprador no identificado"}\n${venta.clienteDocumento.orEmpty()}\nFecha: ${venta.fecha.orEmpty()}\nEstado: ${venta.estado.orEmpty()}")
         texto("PRODUCTOS", 10f, false, true)
         venta.detalles.orEmpty().forEach { texto("${it.productoNombre ?: it.productoId}\n${it.cantidad ?: 0} × S/ ${monto(it.precioUnitario)}     S/ ${monto(it.subtotal)}") }
@@ -78,7 +85,7 @@ internal fun guardarTicket80(context: Context, venta: VentaDto, local: Comproban
         y += qrTam + 12
         dibujar(bloques.last())
         pdf.finishPage(page)
-        val nombre = "Maranatha-${id.replace(Regex("[^A-Za-z0-9-]"), "_")}-Ticket-${System.currentTimeMillis()}.pdf"
+        val nombre = "Maranatha-${(beta?.comprobante ?: id).replace(Regex("[^A-Za-z0-9-]"), "_")}-Ticket-${System.currentTimeMillis()}.pdf"
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, nombre)
